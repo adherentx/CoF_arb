@@ -28,14 +28,19 @@ print 'Hello, this is the simulation of CoF.'
 def CoF_compute_search_pow(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
     cof_pow = lambda x: -CoF_compute_fixed_pow(x, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
     Pranges = ((0.1, P_con), (0.1, P_con))
+    initial_guess = [0.5*P_con, 0.5*P_con]
     if P_Search_Alg == 'brute':
         res_cof = optimize.brute(cof_pow, Pranges, Ns=20, full_output=True, finish=None)
         P_opt = res_cof[0]
         sum_rate_opt = -res_cof[1] # negative! see minus sign in cof_pow
     elif P_Search_Alg == 'TNC':
-        res_cof = optimize.minimize(cof_pow, [0.5*P_con, 0.5*P_con], method='TNC', bounds=Pranges, options={'maxiter': 100})
+        res_cof = optimize.minimize(cof_pow, initial_guess, method='TNC', bounds=Pranges, options={'maxiter': 100})
         P_opt = list(res_cof.x)
         sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
+    elif P_Search_Alg == 'anneal':
+        res_cof = optimize.anneal(cof_pow, initial_guess, schedule='boltzmann', full_output=True, maxiter=20, lower=2, upper=P_con, dwell=20, disp=True)
+        P_opt = list(res_cof[0])
+        sum_rate_opt = -res_cof[1]
     else:
         raise Exception('error: algorithm not supported')
     return sum_rate_opt
@@ -57,7 +62,9 @@ def CoF_compute_fixed_pow(P_t, *params):
         raise Exception('error: please check your parameters!')
     
     if P1 <= 0 or P2 <= 0:
-        raise Exception('error: P1 and P2 should be positive')
+        print 'P1 and P2 should be positive'
+        return 0
+        #raise Exception('error: P1 and P2 should be positive')
     
     P_vec = vector(RR, [P1, P2])
     P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
@@ -94,7 +101,7 @@ def CoF_compute_fixed_pow(P_t, *params):
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_first_hop(P_con):
-    iter_H = 20000
+    iter_H = 2000
     sum_rate = 0
     sum_rate_var = 0
     for i_H in range(0, iter_H):
@@ -258,14 +265,14 @@ def CoF_compute_eq_pow_con_dual_hops(P_con):
 if __name__ == "__main__": 
     '''Equal Power Constraint'''
     P_eq_dB_Min = float(20)
-    P_eq_dB_Max = float(40)
+    P_eq_dB_Max = float(60)
     P_delta = 5
     P_eq_dB = arange(P_eq_dB_Min, P_eq_dB_Max, P_delta)
     P_eq = [10**(P_eq_dB_i/10) for P_eq_dB_i in P_eq_dB]
     Pl_con = P_eq
     
     '''First Hop'''
-    if False:
+    if True:
         t1 = time.ctime()
         result = list(CoF_compute_eq_pow_con_first_hop(Pl_con))
         t2 = time.ctime()
@@ -291,7 +298,7 @@ if __name__ == "__main__":
         show(plot_compare)
     
     '''Dual Hops'''
-    if True:
+    if False:
         t1 = time.ctime()
         result = list(CoF_compute_eq_pow_con_dual_hops(Pl_con))
         t2 = time.ctime()

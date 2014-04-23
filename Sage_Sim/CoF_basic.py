@@ -6,9 +6,9 @@ L = 2 # L transmitters
 M = 2 # M relays
 p = 3 # The prime number
 
-Cores = 4 # The number of CPU cores used in parallel computing
+Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
-P_Search_Alg = 'TNC' # 'brute', 'TNC'
+P_Search_Alg = 'anneal' # 'brute', 'TNC', 'anneal'
 
 def rate_computation(L, M, P_vec, alpha, H, A):
     r = zero_vector(RR, L)
