@@ -101,7 +101,7 @@ def CoF_compute_fixed_pow(P_t, *params):
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_first_hop(P_con):
-    iter_H = 2000
+    iter_H = 1000
     sum_rate = 0
     sum_rate_var = 0
     for i_H in range(0, iter_H):
