@@ -20,8 +20,10 @@ import time
 from CoF_LLL import *
 from CoF_basic import *
 from CoF_second_hop import *
+from alternate_opt import *
 from scipy import optimize
 import math
+
 
 print 'Hello, this is the simulation of CoF.'
 
@@ -29,20 +31,24 @@ def CoF_compute_search_pow(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme=
     cof_pow = lambda x: -CoF_compute_fixed_pow(x, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
     Pranges = ((0.1, P_con), (0.1, P_con))
     initial_guess = [0.5*P_con, 0.5*P_con]
-    if P_Search_Alg == 'brute':
-        res_cof = optimize.brute(cof_pow, Pranges, Ns=20, full_output=True, finish=None)
-        P_opt = res_cof[0]
-        sum_rate_opt = -res_cof[1] # negative! see minus sign in cof_pow
-    elif P_Search_Alg == 'TNC':
-        res_cof = optimize.minimize(cof_pow, initial_guess, method='TNC', bounds=Pranges, options={'maxiter': 100})
-        P_opt = list(res_cof.x)
-        sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
-    elif P_Search_Alg == 'anneal':
-        res_cof = optimize.anneal(cof_pow, initial_guess, schedule='boltzmann', full_output=True, maxiter=20, lower=2, upper=P_con, dwell=20, disp=True)
-        P_opt = list(res_cof[0])
-        sum_rate_opt = -res_cof[1]
-    else:
-        raise Exception('error: algorithm not supported')
+    try:
+        if P_Search_Alg == 'brute':
+            res_cof = optimize.brute(cof_pow, Pranges, Ns=20, full_output=True, finish=None)
+            P_opt = res_cof[0]
+            sum_rate_opt = -res_cof[1] # negative! see minus sign in cof_pow
+        elif P_Search_Alg == 'TNC':
+            res_cof = optimize.minimize(cof_pow, initial_guess, method='TNC', bounds=Pranges, options={'maxiter': 100})
+            P_opt = list(res_cof.x)
+            sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
+        elif P_Search_Alg == 'anneal':
+            res_cof = optimize.anneal(cof_pow, initial_guess, schedule='boltzmann', full_output=True, maxiter=20, lower=1, upper=P_con, dwell=20, disp=True)
+            P_opt = list(res_cof[0])
+            sum_rate_opt = -res_cof[1]
+        else:
+            raise Exception('error: algorithm not supported')
+    except:
+        print 'error in search algorithms'
+        raise
     return sum_rate_opt
     
     
@@ -69,28 +75,42 @@ def CoF_compute_fixed_pow(P_t, *params):
     P_vec = vector(RR, [P1, P2])
     P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
     # Use LLL to find a good A matrix
-    (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL) = Find_A_and_Rate(P_mat, P_vec, H_a)
-    if is_dual_hop == True:
-        '''constraints of the second hop'''
-        # determine the fine lattice of m-th relay
-        relay_fine_lattices = [float('inf')]*M
-        for i_M in range(0, M):
-            relay_fine_lattices[i_M] = alpha_opt_LLL[i_M]**2+\
-                (((alpha_opt_LLL[i_M]*H_a.row(i_M)-A_best_LLL.row(i_M))*P_mat).norm())**2
-        # determine the fine lattice of the l-th transmitter
-        trans_fine_lattices = [float(0)]*L
-        for i_L in range(0, L):
-            for i_M in range(0, M):
-                if (A_best_LLL[i_M, i_L]!=0) and (relay_fine_lattices[i_M]>trans_fine_lattices[i_L]):
-                    trans_fine_lattices[i_L] = relay_fine_lattices[i_M]
-        # compute the coarse lattice of the l-th transmitter
-        trans_coarse_lattices = list(P_vec) # copy
-        
-        # check whether the second-hop constraint rate_sec_hop can support the first-hop rate r
-        is_support = second_hop(trans_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme)
-    else:
-        # if no second hop constraint, then consider the rate r to be supportable
-        is_support = True
+#     (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL) = Find_A_and_Rate(P_mat, P_vec, H_a)
+    # determine the fine lattice of m-th relay at the same time
+    try:
+        (A_best_LLL, sum_rate_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a)
+    except:
+        print 'error in seeking A and rate'
+        raise
+    try:
+        if is_dual_hop == True:
+            '''constraints of the second hop'''
+            # relay_fine_lattices is already obtained
+    #         relay_fine_lattices = [float('inf')]*M
+    #         for i_M in range(0, M):
+    #             relay_fine_lattices[i_M] = alpha_opt_LLL[i_M]**2+\
+    #                 (((alpha_opt_LLL[i_M]*H_a.row(i_M)-A_best_LLL.row(i_M))*P_mat).norm())**2
+            # determine the fine lattice of the l-th transmitter
+            trans_fine_lattices = [float(0)]*L
+            for i_L in range(0, L):
+                for i_M in range(0, M):
+                    if (A_best_LLL[i_M, i_L]!=0) and (relay_fine_lattices[i_M]>trans_fine_lattices[i_L]):
+                        trans_fine_lattices[i_L] = relay_fine_lattices[i_M]
+            # compute the coarse lattice of the l-th transmitter
+            trans_coarse_lattices = list(P_vec) # copy
+            
+            # check whether the second-hop constraint rate_sec_hop can support the first-hop rate r
+            try:
+                is_support = second_hop(trans_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme)
+            except:
+                print 'error in second hop'
+                raise
+        else:
+            # if no second hop constraint, then consider the rate r to be supportable
+            is_support = True
+    except:
+        print 'error in checking second hop'
+        raise
     
     if is_support == True:
         # return (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL)
@@ -101,7 +121,7 @@ def CoF_compute_fixed_pow(P_t, *params):
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_first_hop(P_con):
-    iter_H = 1000
+    iter_H = 50
     sum_rate = 0
     sum_rate_var = 0
     for i_H in range(0, iter_H):
@@ -115,56 +135,16 @@ def CoF_compute_eq_pow_con_first_hop(P_con):
         sum_rate_i_H_var = 0
 
         # Fixed power
-#         P_mat = sqrt(P_con)*identity_matrix(L)
-#         P_vec = P_con*vector([1]*L)
-        # (A, sum_rate_A, alpha_opt) = CoF_compute_fixed_pow(P_mat, P_vec, H_a, is_dual_hop=False)
         sum_rate_A = CoF_compute_fixed_pow((P_con, P_con), H_a, False)
         
-#         P_vec = zero_vector(RR, L)
-#         P_mat = zero_matrix(RR, L)
-        
         # Variable power
-        sum_rate_A_var = CoF_compute_search_pow(P_con, H_a, is_dual_hop=False)
-        '''
-        sum_rate_A_var = 0;
-        P_vec_best = zero_vector(RR, len(P_vec))
-        alpha_opt_for_P_best = zero_vector(RR, M)
-        delta_P = P_con/(division_P-1)
-        
-        for i_P_prod in range(0, division_P**L):
-            P_prod = i_P_prod;
-            for i_dim_P in range(0, L):
-                P_prod_t_dim = division_P**(L-i_dim_P-1)
-                P_temp = int(P_prod/P_prod_t_dim)*delta_P
-                # FIX ME!
-                # delete +0.01 in the following two lines!!!!
-                P_mat[L-i_dim_P-1, L-i_dim_P-1] = sqrt(P_temp+0.0001)
-                P_vec[L-i_dim_P-1] = deepcopy(P_temp+0.0001)
-                P_prod = P_prod - int(P_prod/P_prod_t_dim)*P_prod_t_dim
-            # for i_dim_P
+        if is_alternate == True:
+            sum_rate_A_var = alternate_optimize(P_con, H_a, is_dual_hop=False)
+        else:
+            sum_rate_A_var = CoF_compute_search_pow(P_con, H_a, is_dual_hop=False)
 
-            (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL) = CoF_compute_fixed_pow(P_mat, P_vec, H_a, is_dual_hop=False)
-            
-            if sum_rate_A_var < sum_rate_A_LLL:
-                sum_rate_A_var = sum_rate_A_LLL
-                P_vec_best = deepcopy(P_vec)
-                alpha_opt_for_P_best = deepcopy(alpha_opt_LLL)
-                A_var = A_best_LLL
-                    
-        # for i_P_prod
-        '''
-        
-        
-#         result_i_H = CoF_Sim_Result_for_Fixed_H_Fixed_P(H_a, \
-#             sum_rate_A, A, alpha_opt, P_con*vector([1]*L))
         sum_rate_i_H = sum_rate_A
-        
-#         result_i_H_var = CoF_Sim_Result_for_Fixed_H_Variable_P(H_a,\
-#             sum_rate_A_var, A_var, alpha_opt_for_P_best, P_vec_best)
         sum_rate_i_H_var = sum_rate_A_var
-        
-#         print result_i_H
-#         print result_i_H_var
         
         sum_rate += sum_rate_i_H
         sum_rate_var += sum_rate_i_H_var
@@ -176,7 +156,7 @@ def CoF_compute_eq_pow_con_first_hop(P_con):
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_dual_hops(P_con):
-    iter_H = 20000
+    iter_H = 20
     sum_rate_sim_mod = 0
     sum_rate_opt_mod = 0
     '''How to determine the power of the relays?'''
@@ -199,8 +179,12 @@ def CoF_compute_eq_pow_con_dual_hops(P_con):
 #         P_mat = zero_matrix(RR, L)
         
         # In dual-hop system, we always use variable power method to avoid outage at the second hop.
-        sum_rate_i_H_sim_mod = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sim_mod')
-        sum_rate_i_H_opt_mod = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='opt_mod')
+        try:
+            sum_rate_i_H_sim_mod = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sim_mod')
+            sum_rate_i_H_opt_mod = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='opt_mod')
+        except:
+            print 'error in searching for good power'
+            raise
         '''
         sum_rate_i_H_opt_mod = 0;
         sum_rate_i_H_sim_mod = 0;
@@ -265,7 +249,7 @@ def CoF_compute_eq_pow_con_dual_hops(P_con):
 if __name__ == "__main__": 
     '''Equal Power Constraint'''
     P_eq_dB_Min = float(20)
-    P_eq_dB_Max = float(60)
+    P_eq_dB_Max = float(40)
     P_delta = 5
     P_eq_dB = arange(P_eq_dB_Min, P_eq_dB_Max, P_delta)
     P_eq = [10**(P_eq_dB_i/10) for P_eq_dB_i in P_eq_dB]

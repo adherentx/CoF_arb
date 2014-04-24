@@ -9,11 +9,6 @@ import time
 from CoF_basic import *
 
 
-def alpha_find(h, P_mat, a):
-    alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm()**2)
-    return alpha_opt
-    #alpha_opt_v = h.row()*P_mat*P_mat.T*a.column()*~(1+h.row()*P_mat*P_mat.T*h.column())
-    #return alpha_opt_v[0, 0]
 
 def Find_A_m_list(P, H):
     # P is a LxL matrix, H is a MxL matrix
@@ -21,7 +16,7 @@ def Find_A_m_list(P, H):
     A_m_list = []
     for i_a in range(0, M):
         h = H.row(i_a)
-        G = P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm())**2)))*P.T
+        G = P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm(p=2))**2)))*P.T
         G_rdf = G.change_ring(RDF)
         if G_rdf.is_positive_definite() == False:
             raise Exception('G should be positive definite!')
@@ -35,7 +30,7 @@ def Find_A_m_list(P, H):
         F_a_reduced = F_a_z.LLL(use_givens=True)
         F_reduced = F_a_reduced/amp
         F_reduced_list = F_reduced.rows()
-        F_reduced_list = sorted(F_reduced_list, key=lambda x:x.norm(), reverse=False)
+        F_reduced_list = sorted(F_reduced_list, key=lambda x:x.norm(p=2), reverse=False)
         F_reduced = matrix(F_reduced_list)
         FF = F_reduced*F.inverse()
         FF_z = matrix(ZZ, L, L, [round(x) for x in FF.list()])
@@ -51,14 +46,20 @@ def Find_A_and_Rate(P_mat, P_vec, H):
         A.set_row(i_a, A_list[i_a].row(0))
     A_F = matrix(GF(p), A)
     rank_first_row = A_F.rank()
-    alpha_opt = zero_vector(RR, M)
+#     alpha_opt = zero_vector(RR, M)
+    relay_fine_lattices = phi = [0]*M
     sum_rate = 0
     A_best = zero_matrix(ZZ, M, L)
     if rank_first_row == min(L, M):
         # full rank
-        for i_alpha in range(0, M):
-            alpha_opt[i_alpha] = alpha_find(H.row(i_alpha), P_mat, A.row(i_alpha))
-        rate = rate_computation(L, M, P_vec, alpha_opt, H, A)
+#         for i_alpha in range(0, M):
+#             alpha_opt[i_alpha] = alpha_find(H.row(i_alpha), P_mat, A.row(i_alpha))
+#         rate = rate_computation(L, M, P_vec, alpha_opt, H, A)
+        try:
+            (rate, relay_fine_lattices) = rate_computation_MMSE_alpha(L, M, P_vec, H, A)
+        except:
+            print 'error in rate_computation_MMSE_alpha: pos 0'
+            raise
         sum_rate = sum(rate)
         A_best = A
     else:
@@ -71,13 +72,18 @@ def Find_A_and_Rate(P_mat, P_vec, H):
                 A.set_row(i_a, A_list[i_a].row(idx_row_i_a))
             A_F = matrix(GF(p), A)
             if A_F.rank() == min(L, M):
-                alpha_opt_i_row_search = zero_vector(RR, M)
-                for i_alpha in range(0, M):
-                    alpha_opt_i_row_search[i_alpha] = alpha_find(H.row(i_alpha), P_mat, A.row(i_alpha))
-                rate = rate_computation(L, M, P_vec, alpha_opt_i_row_search, H, A)
+#                 alpha_opt_i_row_search = zero_vector(RR, M)
+#                 for i_alpha in range(0, M):
+#                     alpha_opt_i_row_search[i_alpha] = alpha_find(H.row(i_alpha), P_mat, A.row(i_alpha))
+#                 rate = rate_computation(L, M, P_vec, alpha_opt_i_row_search, H, A)
+                try:
+                    (rate, relay_fine_lattices_i_row_search) = rate_computation_MMSE_alpha(L, M, P_vec, H, A)
+                except:
+                    print 'error in rate_computation_MMSE_alpha: pos 1'
                 if sum_rate < sum(rate):
                     sum_rate = sum(rate)
-                    alpha_opt = alpha_opt_i_row_search
+#                     alpha_opt = alpha_opt_i_row_search
+                    relay_fine_lattices = relay_fine_lattices_i_row_search
                     A_best = A
             else:
                 pass
@@ -86,7 +92,8 @@ def Find_A_and_Rate(P_mat, P_vec, H):
 #         pass # for test
 #     if A_best == matrix(GF(p), 2, 2, [[1, 2], [2, 1]]):
 #         pass
-    return (A_best, sum_rate, alpha_opt)
+
+    return (A_best, sum_rate, relay_fine_lattices)
 
     
 @parallel(ncpus=Cores)
