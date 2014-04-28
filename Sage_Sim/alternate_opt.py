@@ -10,37 +10,34 @@ from CoF_basic import *
 from CoF_LLL import *
 from scipy import optimize
 
+
 def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
     max_iter_alt = 10
-    P_vec_init = vector(RR, [P_con, P_con])
-    P_mat_init = matrix.diagonal([sqrt(x) for x in P_vec_init])
+    P_t_init = (P_con, P_con)
     try:
-        A, sum_rate_0, relay_fine_lattices = Find_A_and_Rate(P_mat_init, P_vec_init, H_a)
+        sum_rate, A = CoF_compute_fixed_pow(P_t_init, True, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
         for i_iter in range(0, max_iter_alt):
-            P_lst, sum_rate = search_P_for_rate_compute_MMSE_alpha(P_con, A, H_a)
-            if sum_rate_0 != sum_rate:
-                print 'here'
-            P_vec = vector(RR, P_lst)
-            P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
+            P_lst, sum_rate = search_P_for_rate_compute_MMSE_alpha(P_con, A, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
             A_old = A
-            A, sum_rate, relay_fine_lattices = Find_A_and_Rate(P_mat, P_vec, H_a)
+            sum_rate, A = CoF_compute_fixed_pow(P_lst, True, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
             if A_old == A:
                 # converge
                 break
     except:
         print 'error in alternate optimize'
         raise
-    P_opt = P_vec
+    P_opt = P_lst
     sum_rate_opt = sum_rate
     return sum_rate_opt
 
-def search_P_for_rate_compute_MMSE_alpha(P_con, A, H):
+# FIX Me!!!
+def search_P_for_rate_compute_MMSE_alpha(P_con, A, H, is_dual_hop, rate_sec_hop, mod_scheme):
     (M, L) = (H.nrows(), H.ncols())
     cof_pow = lambda x: -sum_rate_computation_MMSE_alpha(L, M, x, H, A)
     Pranges = ((0.1, P_con), (0.1, P_con))
     initial_guess = [0.5*P_con, 0.5*P_con]
     if P_Search_Alg == 'brute':
-        res_cof = optimize.brute(cof_pow, Pranges, Ns=20, full_output=True, finish=None)
+        res_cof = optimize.brute(cof_pow, Pranges, Ns=50, full_output=True, finish=None)
         P_opt = list(res_cof[0])
         sum_rate_opt = -res_cof[1] # negative! see minus sign in cof_pow
     elif P_Search_Alg == 'TNC':

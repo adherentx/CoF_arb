@@ -23,16 +23,18 @@ def par_func(a, b):
     print matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
     return a*b
 
-t1 = time.ctime()
 
-a = [1, 6, 3]
-b = [-1, 1, 1]
-fac_results = sorted(list(par_func(zip(a, b))))
-print fac_results
-#print fac_results
-
-t2 = time.ctime()
-
-print 'Simulation started at ', t1
-print 'Simulation ended at  ', t2
+if __name__ == '__main__':
+    t1 = time.ctime()
+    
+    a = [1, 6, 3]
+    b = [-1, 1, 1]
+    fac_results = sorted(list(par_func(zip(a, b))))
+    print fac_results
+    #print fac_results
+    
+    t2 = time.ctime()
+    
+    print 'Simulation started at ', t1
+    print 'Simulation ended at  ', t2
 

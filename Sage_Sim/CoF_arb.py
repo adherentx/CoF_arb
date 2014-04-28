@@ -23,17 +23,20 @@ from CoF_second_hop import *
 from alternate_opt import *
 from scipy import optimize
 import math
-
+import gc
+sys.path.insert(1, '/usr/local/lib/python2.7/dist-packages/')
+from guppy import hpy
+my_hpy = hpy()
 
 print 'Hello, this is the simulation of CoF.'
 
 def CoF_compute_search_pow(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
-    cof_pow = lambda x: -CoF_compute_fixed_pow(x, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
+    cof_pow = lambda x: -CoF_compute_fixed_pow(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
     Pranges = ((0.1, P_con), (0.1, P_con))
     initial_guess = [0.5*P_con, 0.5*P_con]
     try:
         if P_Search_Alg == 'brute':
-            res_cof = optimize.brute(cof_pow, Pranges, Ns=20, full_output=True, finish=None)
+            res_cof = optimize.brute(cof_pow, Pranges, Ns=50, full_output=True, finish=None)
             P_opt = res_cof[0]
             sum_rate_opt = -res_cof[1] # negative! see minus sign in cof_pow
         elif P_Search_Alg == 'TNC':
@@ -41,7 +44,8 @@ def CoF_compute_search_pow(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme=
             P_opt = list(res_cof.x)
             sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
         elif P_Search_Alg == 'anneal':
-            res_cof = optimize.anneal(cof_pow, initial_guess, schedule='boltzmann', full_output=True, maxiter=20, lower=1, upper=P_con, dwell=20, disp=True)
+            res_cof = optimize.anneal(cof_pow, initial_guess, schedule='boltzmann', \
+                                      full_output=True, maxiter=20, lower=[1, 1], upper=[P_con, P_con], dwell=20, disp=True)
             P_opt = list(res_cof[0])
             sum_rate_opt = -res_cof[1]
         else:
@@ -51,77 +55,9 @@ def CoF_compute_search_pow(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme=
         raise
     return sum_rate_opt
     
-    
-'''This is for L=M=2!'''
-def CoF_compute_fixed_pow(P_t, *params):
-    P1, P2 = P_t
-    print 'P1 = ', P1, '   P2 = ', P2
-    if math.isnan(P1) or math.isnan(P2):
-        print 'P1 or P2 should not be NaN!'
-        return 0
-
-    if len(params) == 2:
-        H_a, is_dual_hop = params
-    elif len(params) == 4:
-        H_a, is_dual_hop, rate_sec_hop, mod_scheme = params
-    else:
-        raise Exception('error: please check your parameters!')
-    
-    if P1 <= 0 or P2 <= 0:
-        print 'P1 and P2 should be positive'
-        return 0
-        #raise Exception('error: P1 and P2 should be positive')
-    
-    P_vec = vector(RR, [P1, P2])
-    P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
-    # Use LLL to find a good A matrix
-#     (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL) = Find_A_and_Rate(P_mat, P_vec, H_a)
-    # determine the fine lattice of m-th relay at the same time
-    try:
-        (A_best_LLL, sum_rate_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a)
-    except:
-        print 'error in seeking A and rate'
-        raise
-    try:
-        if is_dual_hop == True:
-            '''constraints of the second hop'''
-            # relay_fine_lattices is already obtained
-    #         relay_fine_lattices = [float('inf')]*M
-    #         for i_M in range(0, M):
-    #             relay_fine_lattices[i_M] = alpha_opt_LLL[i_M]**2+\
-    #                 (((alpha_opt_LLL[i_M]*H_a.row(i_M)-A_best_LLL.row(i_M))*P_mat).norm())**2
-            # determine the fine lattice of the l-th transmitter
-            trans_fine_lattices = [float(0)]*L
-            for i_L in range(0, L):
-                for i_M in range(0, M):
-                    if (A_best_LLL[i_M, i_L]!=0) and (relay_fine_lattices[i_M]>trans_fine_lattices[i_L]):
-                        trans_fine_lattices[i_L] = relay_fine_lattices[i_M]
-            # compute the coarse lattice of the l-th transmitter
-            trans_coarse_lattices = list(P_vec) # copy
-            
-            # check whether the second-hop constraint rate_sec_hop can support the first-hop rate r
-            try:
-                is_support = second_hop(trans_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme)
-            except:
-                print 'error in second hop'
-                raise
-        else:
-            # if no second hop constraint, then consider the rate r to be supportable
-            is_support = True
-    except:
-        print 'error in checking second hop'
-        raise
-    
-    if is_support == True:
-        # return (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL)
-        return sum_rate_A_LLL
-    else:
-        # return (zero_matrix(ZZ, M, L), 0, zero_vector(RR, M))
-        return 0
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_first_hop(P_con):
-    iter_H = 50
     sum_rate = 0
     sum_rate_var = 0
     for i_H in range(0, iter_H):
@@ -135,7 +71,7 @@ def CoF_compute_eq_pow_con_first_hop(P_con):
         sum_rate_i_H_var = 0
 
         # Fixed power
-        sum_rate_A = CoF_compute_fixed_pow((P_con, P_con), H_a, False)
+        sum_rate_A = CoF_compute_fixed_pow((P_con, P_con), False, H_a, False)
         
         # Variable power
         if is_alternate == True:
@@ -152,11 +88,11 @@ def CoF_compute_eq_pow_con_first_hop(P_con):
     sum_rate /= iter_H
     sum_rate_var /= iter_H
     
+#     print P_con, sum_rate, sum_rate_var
     return CoF_Sim_Result(sum_rate, sum_rate_var)
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_dual_hops(P_con):
-    iter_H = 20
     sum_rate_sim_mod = 0
     sum_rate_opt_mod = 0
     '''How to determine the power of the relays?'''
@@ -175,9 +111,6 @@ def CoF_compute_eq_pow_con_dual_hops(P_con):
         for i_h_b in range(0, M):
             rate_sec_hop[i_h_b] = 0.5*log(1+H_b[i_h_b]**2*P_relay, 2)
         
-#         P_vec = zero_vector(RR, L)
-#         P_mat = zero_matrix(RR, L)
-        
         # In dual-hop system, we always use variable power method to avoid outage at the second hop.
         try:
             sum_rate_i_H_sim_mod = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sim_mod')
@@ -185,57 +118,6 @@ def CoF_compute_eq_pow_con_dual_hops(P_con):
         except:
             print 'error in searching for good power'
             raise
-        '''
-        sum_rate_i_H_opt_mod = 0;
-        sum_rate_i_H_sim_mod = 0;
-        A_opt_mod = zero_matrix(ZZ, 3, 3)
-        A_sim_mod = zero_matrix(ZZ, 3, 3)
-        P_vec_best_opt_mod = zero_vector(RR, len(P_vec))
-        P_vec_best_sim_mod = zero_vector(RR, len(P_vec))
-        alpha_opt_opt_mod = zero_vector(RR, M)
-        alpha_opt_sim_mod = zero_vector(RR, M)
-        delta_P = P_con/(division_P-1)
-        
-        for i_P_prod in range(0, division_P**L):
-            P_prod = i_P_prod;
-            for i_dim_P in range(0, L):
-                P_prod_t_dim = division_P**(L-i_dim_P-1)
-                P_temp = int(P_prod/P_prod_t_dim)*delta_P
-                # FIX ME!
-                # delete +0.01 in the following two lines!!!!
-                P_mat[L-i_dim_P-1, L-i_dim_P-1] = sqrt(P_temp+0.0001)
-                P_vec[L-i_dim_P-1] = deepcopy(P_temp+0.0001)
-                P_prod = P_prod - int(P_prod/P_prod_t_dim)*P_prod_t_dim
-            # for i_dim_P
-            
-            (A_i_P_opt_mod, sum_rate_i_P_opt_mod, alpha_opt_i_P_opt_mod) = \
-                CoF_compute_fixed_pow(P_mat, P_vec, H_a, is_dual_hop=True, \
-                rate_sec_hop=rate_sec_hop, mod_scheme='opt_mod')
-            (A_i_P_sim_mod, sum_rate_i_P_sim_mod, alpha_opt_i_P_sim_mod) = \
-                CoF_compute_fixed_pow(P_mat, P_vec, H_a, is_dual_hop=True, \
-                rate_sec_hop=rate_sec_hop, mod_scheme='sim_mod')
-            
-            if sum_rate_i_H_opt_mod < sum_rate_i_P_opt_mod:
-                sum_rate_i_H_opt_mod = sum_rate_i_P_opt_mod
-                P_vec_best_opt_mod = deepcopy(P_vec)
-                alpha_opt_opt_mod = deepcopy(alpha_opt_i_P_opt_mod)
-                A_opt_mod = A_i_P_opt_mod
-            if sum_rate_i_H_sim_mod < sum_rate_i_P_sim_mod:
-                sum_rate_i_H_sim_mod = sum_rate_i_P_sim_mod
-                P_vec_best_sim_mod = deepcopy(P_vec)
-                alpha_opt_sim_mod = deepcopy(alpha_opt_i_P_sim_mod)
-                A_sim_mod = A_i_P_sim_mod
-                    
-        # for i_P_prod
-        '''
-
-#         result_i_H_opt_mod = CoF_Sim_Result_for_Fixed_H_Variable_P(H_a,\
-#             sum_rate_i_H_opt_mod, A_opt_mod, alpha_opt_opt_mod, P_vec_best_opt_mod)
-#         result_i_H_sim_mod = CoF_Sim_Result_for_Fixed_H_Variable_P(H_a,\
-#             sum_rate_i_H_sim_mod, A_sim_mod, alpha_opt_sim_mod, P_vec_best_sim_mod)
-        
-#         print result_i_H_opt_mod
-#         print result_i_H_sim_mod
         
         sum_rate_sim_mod += sum_rate_i_H_sim_mod
         sum_rate_opt_mod += sum_rate_i_H_opt_mod
@@ -249,17 +131,18 @@ def CoF_compute_eq_pow_con_dual_hops(P_con):
 if __name__ == "__main__": 
     '''Equal Power Constraint'''
     P_eq_dB_Min = float(20)
-    P_eq_dB_Max = float(40)
+    P_eq_dB_Max = float(60)
     P_delta = 5
     P_eq_dB = arange(P_eq_dB_Min, P_eq_dB_Max, P_delta)
     P_eq = [10**(P_eq_dB_i/10) for P_eq_dB_i in P_eq_dB]
     Pl_con = P_eq
     
     '''First Hop'''
-    if True:
+    if False:
         t1 = time.ctime()
         result = list(CoF_compute_eq_pow_con_first_hop(Pl_con))
         t2 = time.ctime()
+        result = sorted(result, key = lambda res_i:res_i[0][0])
         
         print 'Simulation of the first hop started at ', t1
         print 'Simulation of the first hop ended at ', t2
@@ -278,14 +161,16 @@ if __name__ == "__main__":
         plot_compare.axes_labels(['SNR(dB)', 'Sum rate(bps)'])
         str_label = t1
         plot_compare.save('/home/adherentx/Dropbox/Research/My_Report/Compute_and_Forward/Sage_Sim/Simulation_Results/Comparison_Fixed_and_Variable_Power_in_the_First_Hop-' \
-                          +P_Search_Alg+str_label+'.eps')
+                          +P_Search_Alg+'-is_alternate='+str(is_alternate)+str_label+'.eps')
         show(plot_compare)
     
     '''Dual Hops'''
-    if False:
+    if True:
         t1 = time.ctime()
         result = list(CoF_compute_eq_pow_con_dual_hops(Pl_con))
+        #result = CoF_compute_eq_pow_con_dual_hops(100)
         t2 = time.ctime()
+        result = sorted(result, key = lambda res_i:res_i[0][0])
         
         print 'Simulation of dual hops started at ', t1
         print 'Simulation of dual hops ended at ', t2
@@ -304,7 +189,7 @@ if __name__ == "__main__":
         plot_compare.axes_labels(['SNR(dB)', 'Sum rate(bps)'])
         str_label = t1
         plot_compare.save('/home/adherentx/Dropbox/Research/My_Report/Compute_and_Forward/Sage_Sim/Simulation_Results/Comparison_Simple_and_Optimal_Modulo_Methods_in_Dual_Hops_System-' \
-                          +P_Search_Alg+str_label+'.eps')
+                          +P_Search_Alg+'-is_alternate='+str(is_alternate)+str_label+'.eps')
         show(plot_compare)
     
     '''Dual Hop'''

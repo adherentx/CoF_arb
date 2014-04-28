@@ -9,13 +9,12 @@ p = 3 # The prime number
 Cores = 1 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
 P_Search_Alg = 'brute' # 'brute', 'TNC', 'anneal'
-is_alternate = True # True or False
+is_alternate = False # True or False
+iter_H = 2
 
 def alpha_find(h, P_mat, a):
     alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm(p=2)**2)
     return alpha_opt
-    #alpha_opt_v = h.row()*P_mat*P_mat.T*a.column()*~(1+h.row()*P_mat*P_mat.T*h.column())
-    #return alpha_opt_v[0, 0]
     
 def rate_computation(L, M, P_vec, alpha, H, A):
     r = zero_vector(RR, L)
@@ -54,7 +53,6 @@ def rate_computation_MMSE_alpha(L, M, P_t, H, A):
             a_m = A.row(i_m)
             phi[i_m] = (a_m.row()*P).norm(p=2)**2- \
                 ((h_m.row()*P*P.T*a_m.column()).norm(p=2)**2)/(1+(h_m*P).norm(p=2)**2)
-                
         for i_l in range(0, L):
             phi_max = 0
             for i_m in range(0, M):
