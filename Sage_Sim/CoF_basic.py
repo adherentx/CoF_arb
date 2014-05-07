@@ -6,11 +6,13 @@ L = 2 # L transmitters
 M = 2 # M relays
 p = 3 # The prime number
 
-Cores = 1 # The number of CPU cores used in parallel computing
+Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
 P_Search_Alg = 'brute' # 'brute', 'TNC', 'anneal'
+brute_number = 50
 is_alternate = False # True or False
-iter_H = 2
+iter_H = 32
+batch_H = 4
 
 def alpha_find(h, P_mat, a):
     alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm(p=2)**2)
@@ -73,9 +75,15 @@ def sum_rate_computation_MMSE_alpha(L, M, P_t, H, A):
 
 # Simple structure, for containing simulation result
 class CoF_Sim_Result:
-    def __init__(self, sum_rate_1, sum_rate_2):
-        self.sum_rate_1 = sum_rate_1
-        self.sum_rate_2 = sum_rate_2
+    def __init__(self, sum_rate, sum_rate_var):
+        self.sum_rate = sum_rate
+        self.sum_rate_var = sum_rate_var
+        
+class CoF_Dual_Hops_Sim_Result:
+    def __init__(self, sum_rate_fixed_pow_sim_mod, sum_rate_sim_mod, sum_rate_opt_mod):
+        self.sum_rate_fixed_pow_sim_mod = sum_rate_fixed_pow_sim_mod
+        self.sum_rate_sim_mod = sum_rate_sim_mod
+        self.sum_rate_opt_mod = sum_rate_opt_mod
 
 class CoF_Sim_Result_for_Fixed_H_Fixed_P:
     def __init__(self, H_a, sum_rate_i_H, A, alpha_opt, P_vec):

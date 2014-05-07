@@ -10,10 +10,37 @@ from CoF_basic import *
 from CoF_second_hop import *
 
 
+def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
+    M = 2
+    L = 2
+    P1, P2 = P_t
+    if math.isnan(P1) or math.isnan(P2):
+        print 'P1 or P2 should not be NaN!'
+        return 0
+    if P1 <= 0 or P2 <= 0:
+        print 'P1 and P2 should be positive'
+        return 0
+    P_vec = vector(RR, [P1, P2])
+    P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
+    # Use LLL to find a good A matrix
+    # determine the fine lattice of m-th relay at the same time
+    try:
+        (A_best_LLL, rate_list_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=True)
+    except:
+        print 'error in seeking A and rate'
+        raise
+    rate_list = list(rate_list_A_LLL)
+    for i_l in range(0, L):
+        for i_m in range(0, M):
+            if (A_best_LLL[i_m, i_l]!=0) and (rate_sec_hop[i_m]<rate_list[i_l]):
+                rate_list[i_l] = rate_sec_hop[i_m]
+    sum_rate = sum(rate_list)
+    return sum_rate
+
 '''This is for L=M=2!'''
 def CoF_compute_fixed_pow(P_t, is_return_A, *params):
     P1, P2 = P_t
-    # print 'P1 = ', P1, '   P2 = ', P2
+    #print 'P1 = ', P1, '   P2 = ', P2
     if math.isnan(P1) or math.isnan(P2):
         print 'P1 or P2 should not be NaN!'
         return 0
@@ -33,10 +60,9 @@ def CoF_compute_fixed_pow(P_t, is_return_A, *params):
     P_vec = vector(RR, [P1, P2])
     P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
     # Use LLL to find a good A matrix
-#     (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL) = Find_A_and_Rate(P_mat, P_vec, H_a)
     # determine the fine lattice of m-th relay at the same time
     try:
-        (A_best_LLL, sum_rate_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a)
+        (A_best_LLL, sum_rate_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=False)
     except:
         print 'error in seeking A and rate'
         raise
@@ -108,7 +134,7 @@ def Find_A_m_list(P, H):
         A_m_list += [FF_z]
     return A_m_list
 
-def Find_A_and_Rate(P_mat, P_vec, H):
+def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
     # Use LLL to find a good A matrix
     (M, L) = (H.nrows(), H.ncols())
     A_list = Find_A_m_list(P_mat, H)
@@ -120,6 +146,7 @@ def Find_A_and_Rate(P_mat, P_vec, H):
 #     alpha_opt = zero_vector(RR, M)
     relay_fine_lattices = [0]*M
     sum_rate = 0
+    rate_list = [0]*L
     A_best = zero_matrix(ZZ, M, L)
     if rank_first_row == min(L, M):
         # full rank
@@ -132,6 +159,7 @@ def Find_A_and_Rate(P_mat, P_vec, H):
             print 'error in rate_computation_MMSE_alpha: pos 0'
             raise
         sum_rate = sum(rate)
+        rate_list = list(rate)
         A_best = A
     else:
         # rank deficiency: search for full-rank matrix A
@@ -149,6 +177,7 @@ def Find_A_and_Rate(P_mat, P_vec, H):
                     print 'error in rate_computation_MMSE_alpha: pos 1'
                 if sum_rate < sum(rate):
                     sum_rate = sum(rate)
+                    rate_list = list(rate)
 #                     alpha_opt = alpha_opt_i_row_search
                     relay_fine_lattices = relay_fine_lattices_i_row_search
                     A_best = A
@@ -159,8 +188,10 @@ def Find_A_and_Rate(P_mat, P_vec, H):
 #         pass # for test
 #     if A_best == matrix(GF(p), 2, 2, [[1, 2], [2, 1]]):
 #         pass
-
-    return (A_best, sum_rate, relay_fine_lattices)
+    if is_return_rate_list == True:
+        return (A_best, rate_list, relay_fine_lattices)
+    else:
+        return (A_best, sum_rate, relay_fine_lattices)
 
     
 @parallel(ncpus=Cores)
@@ -176,7 +207,7 @@ def CoF_rank_deficiency(P_con):
         P_vec = P_con*vector([1]*L)
         
         # Use LLL to find a good A matrix
-        (A, dummy, dummy) = Find_A_and_Rate(P_mat, P_vec, H_a)
+        (A, dummy, dummy) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=False)
         
         A_F = matrix(GF(p), A)
         alpha_opt = zero_vector(RR, M)
