@@ -2,17 +2,18 @@ import copy
 from sage.all import *
 import math
 
+
 L = 2 # L transmitters
 M = 2 # M relays
-p = 3 # The prime number
+p = 2 # The prime number
 
 Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
 P_Search_Alg = 'brute' # 'brute', 'TNC', 'anneal'
 brute_number = 50
 is_alternate = False # True or False
-iter_H = 32
-batch_H = 4
+iter_H = 160
+batch_H = 20
 
 def alpha_find(h, P_mat, a):
     alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm(p=2)**2)
@@ -38,13 +39,16 @@ def rate_computation(L, M, P_vec, alpha, H, A):
             r[i_l] = 0.5*log(max(1, P_vec[i_l]/phi_max), 2)
     return r
 
+
 # P is a LxL matrix P_mat
 def rate_computation_MMSE_alpha(L, M, P_t, H, A):
-    P1, P2 = P_t
-    # print 'P1 = ', P1, '   P2 = ', P2
-    if math.isnan(P1) or math.isnan(P2):
-        print 'P1 or P2 should not be NaN!'
-        return 0
+    for i_P in range(0, len(P_t)):
+        if math.isnan(P_t[i_P]):
+            print 'P', str(i_P), ' should not be NaN!'
+            return 0
+        if P_t[i_P] <= 0:
+            print 'P', str(i_P), ' should be positive'
+            return 0
     P = matrix.diagonal([sqrt(x) for x in P_t])
     
     r = zero_vector(RR, L)
@@ -68,9 +72,11 @@ def rate_computation_MMSE_alpha(L, M, P_t, H, A):
     return (r, phi)
     # phi is exactly the fine lattices at the relays
 
+
 def sum_rate_computation_MMSE_alpha(L, M, P_t, H, A):
-    r, phi = rate_computation_MMSE_alpha(L, M, P_t, H, A)
+    r, relay_fine_lattices = rate_computation_MMSE_alpha(L, M, P_t, H, A)
     return sum(r)
+
 
 
 # Simple structure, for containing simulation result
@@ -80,8 +86,9 @@ class CoF_Sim_Result:
         self.sum_rate_var = sum_rate_var
         
 class CoF_Dual_Hops_Sim_Result:
-    def __init__(self, sum_rate_fixed_pow_sim_mod, sum_rate_sim_mod, sum_rate_opt_mod):
+    def __init__(self, sum_rate_fixed_pow_sim_mod, sum_rate_naive_mod, sum_rate_sim_mod, sum_rate_opt_mod):
         self.sum_rate_fixed_pow_sim_mod = sum_rate_fixed_pow_sim_mod
+        self.sum_rate_naive_mod = sum_rate_naive_mod
         self.sum_rate_sim_mod = sum_rate_sim_mod
         self.sum_rate_opt_mod = sum_rate_opt_mod
 

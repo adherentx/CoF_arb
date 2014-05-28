@@ -10,17 +10,19 @@ from CoF_basic import *
 from CoF_second_hop import *
 
 
+# If the rates at the transmitters are not supported by the second hop, set the rate
+# as the largest rates that the second hop can support.
 def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
-    M = 2
-    L = 2
-    P1, P2 = P_t
-    if math.isnan(P1) or math.isnan(P2):
-        print 'P1 or P2 should not be NaN!'
-        return 0
-    if P1 <= 0 or P2 <= 0:
-        print 'P1 and P2 should be positive'
-        return 0
-    P_vec = vector(RR, [P1, P2])
+    (M, L) = (H_a.nrows(), H_a.ncols())
+    for i_P in range(0, len(P_t)):
+        if math.isnan(P_t[i_P]):
+            print 'P', str(i_P), ' should not be NaN!'
+            return 0
+        if P_t[i_P] <= 0:
+            print 'P', str(i_P), ' should be positive'
+            return 0
+
+    P_vec = vector(RR, P_t)
     P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
     # Use LLL to find a good A matrix
     # determine the fine lattice of m-th relay at the same time
@@ -37,13 +39,15 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
     sum_rate = sum(rate_list)
     return sum_rate
 
-'''This is for L=M=2!'''
+
 def CoF_compute_fixed_pow(P_t, is_return_A, *params):
-    P1, P2 = P_t
-    #print 'P1 = ', P1, '   P2 = ', P2
-    if math.isnan(P1) or math.isnan(P2):
-        print 'P1 or P2 should not be NaN!'
-        return 0
+    for i_P in range(0, len(P_t)):
+        if math.isnan(P_t[i_P]):
+            print 'P', str(i_P), ' should not be NaN!'
+            return 0
+        if P_t[i_P] <= 0:
+            print 'P', str(i_P), ' should be positive'
+            return 0
 
     if len(params) == 2:
         H_a, is_dual_hop = params
@@ -52,12 +56,9 @@ def CoF_compute_fixed_pow(P_t, is_return_A, *params):
     else:
         raise Exception('error: please check your parameters!')
     
-    if P1 <= 0 or P2 <= 0:
-        print 'P1 and P2 should be positive'
-        return 0
-        #raise Exception('error: P1 and P2 should be positive')
+    (M, L) = (H_a.nrows(), H_a.ncols())
     
-    P_vec = vector(RR, [P1, P2])
+    P_vec = vector(RR, P_t)
     P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
     # Use LLL to find a good A matrix
     # determine the fine lattice of m-th relay at the same time
@@ -94,15 +95,16 @@ def CoF_compute_fixed_pow(P_t, is_return_A, *params):
         raise
     
     if is_support == True:
-        # return (A_best_LLL, sum_rate_A_LLL, alpha_opt_LLL)
         if is_return_A == True:
-            return (sum_rate_A_LLL, A_best_LLL)
+            ret = (sum_rate_A_LLL, A_best_LLL)
+            return ret
         else:
             return sum_rate_A_LLL
+
     else:
-        # return (zero_matrix(ZZ, M, L), 0, zero_vector(RR, M))
         if is_return_A == True:
-            return (0, zero_matrix(ZZ, M, L))
+            ret = (0, A_best_LLL)
+            return ret
         else:
             return 0
         
@@ -150,9 +152,6 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
     A_best = zero_matrix(ZZ, M, L)
     if rank_first_row == min(L, M):
         # full rank
-#         for i_alpha in range(0, M):
-#             alpha_opt[i_alpha] = alpha_find(H.row(i_alpha), P_mat, A.row(i_alpha))
-#         rate = rate_computation(L, M, P_vec, alpha_opt, H, A)
         try:
             (rate, relay_fine_lattices) = rate_computation_MMSE_alpha(L, M, P_vec, H, A)
         except:
@@ -198,6 +197,8 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
 def CoF_rank_deficiency(P_con):
     iter_H = 2000
     rank_deficiency = 0
+    M = 2
+    L = 2
     for i_H in range(0, iter_H):
         set_random_seed() # to avoid producing the same H in different threads
         H_a = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
