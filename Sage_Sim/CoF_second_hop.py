@@ -120,6 +120,7 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
         sum_rate_max = 0
         has_feasible = False
         for mod_order in itertools.permutations(list(range(0, M)), L):
+            relay_actual_fine_lattices = list(relay_fine_lattices)
             # each element in mod_order: the relay that the l-th lattice should be assigned to
             mod_order_list = list(mod_order) # note: not equal to pi_e()
             is_decodable = True
@@ -156,15 +157,15 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
                     relay_coarse_lattices[i_m] = trans_coarse_lattices[mod_order_list.index(i_m)]
                 # determine the achievable fine lattices at the relays
                 for i_m in range(0, M):
-                    R_m = max(0, 0.5*log(relay_coarse_lattices[i_m]/relay_fine_lattices[i_m], 2))
+                    R_m = max(0, 0.5*log(relay_coarse_lattices[i_m]/relay_actual_fine_lattices[i_m], 2))
                     if rate_sec_hop[i_m] < R_m:
-                        relay_fine_lattices[i_m] = relay_coarse_lattices[i_m]/(2**(2*rate_sec_hop[i_m]))
+                        relay_actual_fine_lattices[i_m] = relay_coarse_lattices[i_m]/(2**(2*rate_sec_hop[i_m]))
                 # determine the fine lattice of the l-th transmitter
                 trans_fine_lattices = [float(0)]*L
                 for i_L in range(0, L):
                     for i_M in range(0, M):
-                        if (A[i_M, i_L]!=0) and (relay_fine_lattices[i_M]>trans_fine_lattices[i_L]):
-                            trans_fine_lattices[i_L] = relay_fine_lattices[i_M]
+                        if (A[i_M, i_L]!=0) and (relay_actual_fine_lattices[i_M]>trans_fine_lattices[i_L]):
+                            trans_fine_lattices[i_L] = relay_actual_fine_lattices[i_M]
                 # calculate transmission sum rates
                 r = [0]*L
                 for i_l in range(0, L):
@@ -177,18 +178,19 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
             error('If Q is full rank, then there must be at leat one feasible scheme. But no one found.')
         return sum_rate_max
     elif mod_scheme == 'naive_mod':
+        relay_actual_fine_lattices = list(relay_fine_lattices)
         relay_coarse_lattice = max(trans_coarse_lattices)
         # determine the achievable fine lattices at the relays
         for i_m in range(0, M):
-            R_m = max(0, 0.5*log(relay_coarse_lattice/relay_fine_lattices[i_m], 2))
+            R_m = max(0, 0.5*log(relay_coarse_lattice/relay_actual_fine_lattices[i_m], 2))
             if rate_sec_hop[i_m] < R_m:
-                relay_fine_lattices[i_m] = relay_coarse_lattice/(2**(2*rate_sec_hop[i_m]))
+                relay_actual_fine_lattices[i_m] = relay_coarse_lattice/(2**(2*rate_sec_hop[i_m]))
         # determine the fine lattice of the l-th transmitter
         trans_fine_lattices = [float(0)]*L
         for i_L in range(0, L):
             for i_M in range(0, M):
-                if (A[i_M, i_L]!=0) and (relay_fine_lattices[i_M]>trans_fine_lattices[i_L]):
-                    trans_fine_lattices[i_L] = relay_fine_lattices[i_M]
+                if (A[i_M, i_L]!=0) and (relay_actual_fine_lattices[i_M]>trans_fine_lattices[i_L]):
+                    trans_fine_lattices[i_L] = relay_actual_fine_lattices[i_M]
         # calculate transmission sum rates
         r = [0]*L
         for i_l in range(0, L):
