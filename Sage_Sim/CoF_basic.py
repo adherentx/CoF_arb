@@ -10,10 +10,10 @@ p = 2 # The prime number
 Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
 P_Search_Alg = 'brute' # 'brute', 'TNC', 'anneal'
-brute_number = 50
+brute_number = 25
 is_alternate = False # True or False
-iter_H = 160
-batch_H = 20
+iter_H = 8
+batch_H = 1
 
 def alpha_find(h, P_mat, a):
     alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm(p=2)**2)
@@ -86,10 +86,10 @@ class CoF_Sim_Result:
         self.sum_rate_var = sum_rate_var
         
 class CoF_Dual_Hops_Sim_Result:
-    def __init__(self, sum_rate_fixed_pow_sim_mod, sum_rate_naive_mod, sum_rate_sim_mod, sum_rate_opt_mod):
+    def __init__(self, sum_rate_fixed_pow_sim_mod, sum_rate_naive_mod, sum_rate_opt_mod):
         self.sum_rate_fixed_pow_sim_mod = sum_rate_fixed_pow_sim_mod
         self.sum_rate_naive_mod = sum_rate_naive_mod
-        self.sum_rate_sim_mod = sum_rate_sim_mod
+#         self.sum_rate_sim_mod = sum_rate_sim_mod
         self.sum_rate_opt_mod = sum_rate_opt_mod
 
 class CoF_Sim_Result_for_Fixed_H_Fixed_P:
