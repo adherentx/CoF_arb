@@ -5,15 +5,15 @@ import math
 
 L = 2 # L transmitters
 M = 2 # M relays
-p = 2 # The prime number
+p = 17 # The prime number
 
 Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
 P_Search_Alg = 'brute' # 'brute', 'TNC', 'anneal'
-brute_number = 100
+brute_number = 25
 is_alternate = False # True or False
-iter_H = 64
-batch_H = 8
+iter_H = 8
+batch_H = 1
 
 def alpha_find(h, P_mat, a):
     alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm(p=2)**2)

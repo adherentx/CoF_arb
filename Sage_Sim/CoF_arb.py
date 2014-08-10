@@ -31,34 +31,6 @@ import pickle
 
 print 'Hello, this is the simulation of CoF.'
 
-def CoF_compute_search_pow(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
-    (M, L) = (H_a.nrows(), H_a.ncols())
-    cof_pow = lambda x: -CoF_compute_fixed_pow(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
-    Pranges = ((0.1, P_con), )*L
-    initial_guess = [0.5*P_con]*L
-    try:
-        if P_Search_Alg == 'brute':
-            res_cof = optimize.brute(cof_pow, Pranges, Ns=brute_number, full_output=True, finish=None)
-            P_opt = res_cof[0]
-            sum_rate_opt = -res_cof[1] # negative! see minus sign in cof_pow
-        elif P_Search_Alg == 'TNC':
-            #res_cof = optimize.minimize(cof_pow, initial_guess, method='TNC', bounds=Pranges, options={'maxiter': 400, 'approx_grad': True})
-            #P_opt = list(res_cof.x)
-            #sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
-            res_cof = optimize.fmin_tnc(cof_pow, initial_guess, bounds=list(Pranges), approx_grad=True, epsilon=1, stepmx=10)
-            P_opt = res_cof[0]
-            sum_rate_opt = CoF_compute_fixed_pow(P_opt, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
-        elif P_Search_Alg == 'anneal':
-            res_cof = optimize.anneal(cof_pow, initial_guess, schedule='cauchy', T0=1, Tf=1e-6, \
-                      full_output=True, maxiter=30, lower=[1, 1], upper=[P_con, P_con], dwell=30, disp=True)
-            P_opt = list(res_cof[0])
-            sum_rate_opt = -res_cof[1]
-        else:
-            raise Exception('error: algorithm not supported')
-    except:
-        print 'error in search algorithms'
-        raise
-    return sum_rate_opt
 
 def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
     (M, L) = (H_a.nrows(), H_a.ncols())
@@ -105,13 +77,13 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
         sum_rate_i_H_var = 0
 
         # Fixed power
-        sum_rate_A = CoF_compute_fixed_pow((P_con, )*L, False, H_a, False)
+        sum_rate_A = CoF_compute_fixed_pow_flex((P_con, )*L, False, H_a, False)
         
         # Variable power
         if is_alternate == True:
             sum_rate_A_var = alternate_optimize(P_con, H_a, is_dual_hop=False)
         else:
-            sum_rate_A_var = CoF_compute_search_pow(P_con, H_a, is_dual_hop=False)
+            sum_rate_A_var = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=False)
 
         sum_rate_i_H = sum_rate_A
         sum_rate_i_H_var = sum_rate_A_var
@@ -185,7 +157,7 @@ def CoF_compute_eq_pow_con_dual_hops(P_con, M, L):
 if __name__ == "__main__": 
     '''Equal Power Constraint'''
     P_eq_dB_Min = float(25)
-    P_eq_dB_Max = float(50)
+    P_eq_dB_Max = float(55)
     P_delta = 5
     P_eq_dB = arange(P_eq_dB_Min, P_eq_dB_Max, P_delta)
     P_eq = [10**(P_eq_dB_i/10) for P_eq_dB_i in P_eq_dB]
@@ -205,7 +177,7 @@ if __name__ == "__main__":
     os.chdir(dir_name) # change to the directory where simulation results should be placed
     
     '''First Hop'''
-    if False:
+    if True:
         sum_rate = [0]*len(Pl_con)
         sum_rate_var = [0]*len(Pl_con)
         for i_P in range(0, len(Pl_con)):
@@ -288,6 +260,10 @@ if __name__ == "__main__":
                           +P_Search_Alg+'-is_alternate='+str(is_alternate)+'-M=L='+str(M)+'.eps')
         show(plot_compare)
         pickle.dump((P_eq_dB, CoF_Dual_Hops_Sim_Result(sum_rate_fixed_pow_sim_mod, sum_rate_naive_mod, sum_rate_opt_mod)), open('Dual_Hops.pkl', 'w'))
+    
+    print 'fixed power: '; print sum_rate_fixed_pow_sim_mod
+    print 'conventional mod with variable power: '; print sum_rate_naive_mod
+    print 'flexible mod with variable power: '; print sum_rate_opt_mod
     
     os.chdir(original_dir) # recover directory
     raw_input() # stop Sage from shutting down
