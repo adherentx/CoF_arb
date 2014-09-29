@@ -11,7 +11,7 @@ from CoF_LLL import *
 from scipy import optimize
 
 
-def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
+def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod', quan_scheme='sym_quan'):
     (M, L) = (H_a.nrows(), H_a.ncols())
     max_iter_alt = 10
     # P_t_init = [0.8*P_con]*L
@@ -24,7 +24,7 @@ def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim
         A_old = 0 # deliberately. to avoid the problem of A=zero_matrix at the first iteration
         for i_iter in range(0, max_iter_alt):
             sum_rate_A, A = CoF_compute_fixed_pow(P_lst, True, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
-            P_lst, sum_rate_P = search_P_for_rate_compute_MMSE_alpha(P_con, A, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
+            P_lst, sum_rate_P = search_P_for_rate_compute_MMSE_alpha(P_con, A, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme)
             if A_old == A:
                 # converge
                 break
@@ -39,7 +39,7 @@ def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim
     return sum_rate_opt
 
 # FIX Me!!!
-def search_P_for_rate_compute_MMSE_alpha(P_con, A, H, is_dual_hop, rate_sec_hop, mod_scheme):
+def search_P_for_rate_compute_MMSE_alpha(P_con, A, H, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme='sym_quan'):
     (M, L) = (H.nrows(), H.ncols())
     cof_pow = lambda x: -sum_rate_computation_MMSE_alpha_two_hop(L, M, x, H, A, is_dual_hop, rate_sec_hop, mod_scheme)
     Pranges = ((0.1, P_con), )*L

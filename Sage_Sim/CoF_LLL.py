@@ -49,8 +49,8 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
 def CoF_compute_fixed_pow_flex(P_t, is_return_A, *params):
     if len(params) == 2:
         H_a, is_dual_hop = params
-    elif len(params) == 4:
-        H_a, is_dual_hop, rate_sec_hop, mod_scheme = params
+    elif len(params) == 5:
+        H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme = params
     else:
         raise Exception('error: please check your parameters!')
     
@@ -87,7 +87,7 @@ def CoF_compute_fixed_pow_flex(P_t, is_return_A, *params):
             
             # check whether the second-hop constraint rate_sec_hop can support the first-hop rate r
             try:
-                support_rates = RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme))
+                support_rates = RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme, quan_scheme))
             except:
                 print 'error in second hop'
                 raise

@@ -32,9 +32,9 @@ import pickle
 print 'Hello, this is the simulation of CoF.'
 
 
-def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim_mod'):
+def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan'):
     (M, L) = (H_a.nrows(), H_a.ncols())
-    cof_pow = lambda x: -CoF_compute_fixed_pow_flex(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
+    cof_pow = lambda x: -CoF_compute_fixed_pow_flex(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme)
     Pranges = ((0.1, P_con), )*L
     initial_guess = [0.5*P_con]*L
     try:
@@ -48,7 +48,7 @@ def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_sc
             #sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
             res_cof = optimize.fmin_tnc(cof_pow, initial_guess, bounds=list(Pranges), approx_grad=True, epsilon=1, stepmx=10)
             P_opt = res_cof[0]
-            sum_rate_opt = CoF_compute_fixed_pow_flex(P_opt, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme)
+            sum_rate_opt = CoF_compute_fixed_pow_flex(P_opt, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme)
         elif P_Search_Alg == 'anneal':
             res_cof = optimize.anneal(cof_pow, initial_guess, schedule='cauchy', T0=1, Tf=1e-6, \
                       full_output=True, maxiter=30, lower=[1, 1], upper=[P_con, P_con], dwell=30, disp=True)
@@ -95,14 +95,14 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
     sum_rate_var /= batch_H
     
 #     print P_con, sum_rate, sum_rate_var
-    return CoF_Sim_Result(sum_rate, sum_rate_var)
+    return {'sum_rate': sum_rate, sum_rate_var: 'sum_rate_var'}
 
 @parallel(ncpus=Cores)
 def CoF_compute_eq_pow_con_dual_hops(P_con, M, L):
-    sum_rate_fixed_pow_sim_mod = 0
-    sum_rate_naive_mod = 0
-#     sum_rate_sim_mod = 0
-    sum_rate_opt_mod = 0
+    sum_rate_fixed_pow_sym_mod = 0
+    sum_rate_sym_mod = 0
+    sum_rate_asym_mod = 0
+    sum_rate_asym_mod_asym_quan = 0
     '''How to determine the power of the relays?'''
     P_relay = 0.25*P_con
     #P_relay = P_con
@@ -123,35 +123,36 @@ def CoF_compute_eq_pow_con_dual_hops(P_con, M, L):
             rate_sec_hop[i_h_b] = 0.5*log(1+H_b[i_h_b]**2*P_relay, 2)
         
         # Fixed power
-        sum_rate_i_H_fixed_pow_sim_mod = CoF_compute_fixed_pow_flex_fine_lattice((P_con, )*L, H_a, rate_sec_hop)
+        sum_rate_i_H_fixed_pow_sym_mod = CoF_compute_fixed_pow_flex_fine_lattice((P_con, )*L, H_a, rate_sec_hop)
         
         # In dual-hop system, we use variable power method to avoid outage at the second hop.
         try:
             if is_alternate == True:
-                sum_rate_i_H_naive_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='naive_mod')
-#                 sum_rate_i_H_sim_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sim_mod')
-                sum_rate_i_H_opt_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='opt_mod')
+                sum_rate_i_H_sym_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sym_mod', quan_scheme='sym_quan')
+                sum_rate_i_H_asym_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='asym_mod', quan_scheme='sym_quan')
             else:
-                sum_rate_i_H_naive_mod = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='naive_mod')
-#                 sum_rate_i_H_sim_mod = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sim_mod')
-                sum_rate_i_H_opt_mod = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='opt_mod')
-#                 sum_rate_i_H_opt_mod_2 = CoF_compute_search_pow(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='opt_mod')
+                sum_rate_i_H_sym_mod = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sym_mod', quan_scheme='sym_quan')
+                sum_rate_i_H_asym_mod = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='asym_mod', quan_scheme='sym_quan')
+                sum_rate_i_H_asym_mod_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='asym_mod', quan_scheme='asym_quan')
                 pass
         except:
             print 'error in searching for good power'
             raise
         
-        sum_rate_fixed_pow_sim_mod += sum_rate_i_H_fixed_pow_sim_mod
-        sum_rate_naive_mod += sum_rate_i_H_naive_mod
-#         sum_rate_sim_mod += sum_rate_i_H_sim_mod
-        sum_rate_opt_mod += sum_rate_i_H_opt_mod
+        sum_rate_fixed_pow_sym_mod += sum_rate_i_H_fixed_pow_sym_mod
+        sum_rate_sym_mod += sum_rate_i_H_sym_mod
+        sum_rate_asym_mod += sum_rate_i_H_asym_mod
+        sum_rate_asym_mod_asym_quan += sum_rate_i_H_asym_mod_asym_quan
     # for i_H
-    sum_rate_fixed_pow_sim_mod /= batch_H
-    sum_rate_naive_mod /= batch_H
-#     sum_rate_sim_mod /= batch_H
-    sum_rate_opt_mod /= batch_H
+    sum_rate_fixed_pow_sym_mod /= batch_H
+    sum_rate_sym_mod /= batch_H
+    sum_rate_asym_mod /= batch_H
+    sum_rate_asym_mod_asym_quan /= batch_H
     
-    return CoF_Dual_Hops_Sim_Result(sum_rate_fixed_pow_sim_mod, sum_rate_naive_mod, sum_rate_opt_mod)
+    return {'sum_rate_fixed_pow_sym_mod': sum_rate_fixed_pow_sym_mod,
+            'sum_rate_sym_mod': sum_rate_sym_mod, 
+            'sum_rate_asym_mod': sum_rate_asym_mod, 
+            'sum_rate_asym_mod_asym_quan': sum_rate_asym_mod_asym_quan}
 
 
 if __name__ == "__main__": 
@@ -177,14 +178,14 @@ if __name__ == "__main__":
     os.chdir(dir_name) # change to the directory where simulation results should be placed
     
     '''First Hop'''
-    if True:
+    if False:
         sum_rate = [0]*len(Pl_con)
         sum_rate_var = [0]*len(Pl_con)
         for i_P in range(0, len(Pl_con)):
             print 'First Hop Simulation: P_con=', Pl_con[i_P]
             result_bat = list(CoF_compute_eq_pow_con_first_hop([(Pl_con[i_P], M, L)]*num_batch))
-            sum_rate_bat = [result_bat[i][1].sum_rate for i in range(0, num_batch)]
-            sum_rate_var_bat = [result_bat[i][1].sum_rate_var for i in range(0, num_batch)]
+            sum_rate_bat = [result_bat[i][1]['sum_rate'] for i in range(0, num_batch)]
+            sum_rate_var_bat = [result_bat[i][1]['sum_rate_var'] for i in range(0, num_batch)]
             sum_rate[i_P] = sum(sum_rate_bat)/num_batch
             sum_rate_var[i_P] = sum(sum_rate_var_bat)/num_batch
             
@@ -207,14 +208,16 @@ if __name__ == "__main__":
         plot_compare.save('Comparison_Fixed_and_Variable_Power_in_the_First_Hop-' \
                           +P_Search_Alg+'-is_alternate='+str(is_alternate)+'-M=L='+str(M)+'.eps')
         show(plot_compare)
-        pickle.dump((P_eq_dB, CoF_Sim_Result(sum_rate, sum_rate_var)), open('First_Hop.pkl', 'w'))
+        pickle.dump((P_eq_dB, {'sum_rate': sum_rate, 
+                               'sum_rate_var': sum_rate_var}), 
+                    open('First_Hop.pkl', 'w'))
     
     '''Dual Hops'''
     if True:
-        sum_rate_fixed_pow_sim_mod = [0]*len(Pl_con)
-        sum_rate_naive_mod = [0]*len(Pl_con)
-#         sum_rate_sim_mod = [0]*len(Pl_con)
-        sum_rate_opt_mod = [0]*len(Pl_con)
+        sum_rate_fixed_pow_sym_mod = [0]*len(Pl_con)
+        sum_rate_sym_mod = [0]*len(Pl_con)
+        sum_rate_asym_mod = [0]*len(Pl_con)
+        sum_rate_asym_mod_asym_quan = [0]*len(Pl_con)
         t3 = time.ctime()
         # debug:
         #CoF_compute_eq_pow_con_dual_hops(100)
@@ -222,48 +225,57 @@ if __name__ == "__main__":
         for i_P in range(0, len(Pl_con)):
             print 'Dual Hop Simulation: P_con=', Pl_con[i_P]
             result_bat = list(CoF_compute_eq_pow_con_dual_hops([(Pl_con[i_P], M, L)]*num_batch))
-            sum_rate_fixed_pow_sim_mod_bat = [result_bat[i][1].sum_rate_fixed_pow_sim_mod for i in range(0, num_batch)]
-            sum_rate_naive_mod_bat = [result_bat[i][1].sum_rate_naive_mod for i in range(0, num_batch)]
-#             sum_rate_sim_mod_bat = [result_bat[i][1].sum_rate_sim_mod for i in range(0, num_batch)]
-            sum_rate_opt_mod_bat = [result_bat[i][1].sum_rate_opt_mod for i in range(0, num_batch)]
-            sum_rate_fixed_pow_sim_mod[i_P] = sum(sum_rate_fixed_pow_sim_mod_bat)/num_batch
-            sum_rate_naive_mod[i_P] = sum(sum_rate_naive_mod_bat)/num_batch
-#             sum_rate_sim_mod[i_P] = sum(sum_rate_sim_mod_bat)/num_batch
-            sum_rate_opt_mod[i_P] = sum(sum_rate_opt_mod_bat)/num_batch
-        
-        sum_rate_fixed_pow_sim_mod = [RR(sum_rate_fixed_pow_sim_mod[i]) for i in range(0, len(Pl_con))]
-        sum_rate_naive_mod = [RR(sum_rate_naive_mod[i]) for i in range(0, len(Pl_con))]
-#         sum_rate_sim_mod = [RR(sum_rate_sim_mod[i]) for i in range(0, len(Pl_con))]
-        sum_rate_opt_mod = [RR(sum_rate_opt_mod[i]) for i in range(0, len(Pl_con))]
+            
+            sum_rate_fixed_pow_sym_mod_bat = [result_bat[i][1]['sum_rate_fixed_pow_sym_mod'] for i in range(0, num_batch)]
+            sum_rate_sym_mod_bat = [result_bat[i][1]['sum_rate_sym_mod'] for i in range(0, num_batch)]
+            sum_rate_asym_mod_bat = [result_bat[i][1]['sum_rate_asym_mod'] for i in range(0, num_batch)]
+            sum_rate_asym_mod_asym_quan_bat = [result_bat[i][1]['sum_rate_asym_mod_asym_quan'] for i in range(0, num_batch)]
+            
+            sum_rate_fixed_pow_sym_mod[i_P] = sum(sum_rate_fixed_pow_sym_mod_bat)/num_batch
+            sum_rate_sym_mod[i_P] = sum(sum_rate_sym_mod_bat)/num_batch
+            sum_rate_asym_mod[i_P] = sum(sum_rate_asym_mod_bat)/num_batch
+            sum_rate_asym_mod_asym_quan[i_P] = sum(sum_rate_asym_mod_asym_quan_bat)/num_batch
+            
+                    
+        sum_rate_fixed_pow_sym_mod = [RR(sum_rate_fixed_pow_sym_mod[i]) for i in range(0, len(Pl_con))]
+        sum_rate_sym_mod = [RR(sum_rate_sym_mod[i]) for i in range(0, len(Pl_con))]
+        sum_rate_asym_mod = [RR(sum_rate_asym_mod[i]) for i in range(0, len(Pl_con))]
+        sum_rate_asym_mod_asym_quan = [RR(sum_rate_asym_mod_asym_quan[i]) for i in range(0, len(Pl_con))]
         t4 = time.ctime()
         
         print 'Simulation of dual hops started at ', t3
         print 'Simulation of dual hops ended at ', t4
         
-        plot_sum_rate_fixed_pow_sim_mod = list_plot(zip(P_eq_dB, sum_rate_fixed_pow_sim_mod), plotjoined=True, marker='D', \
+        plot_sum_rate_fixed_pow_sym_mod = list_plot(zip(P_eq_dB, sum_rate_fixed_pow_sym_mod), plotjoined=True, marker='D', \
                                   rgbcolor=Color('green'), linestyle="-.", \
                                   legend_label= 'Fixed power(Original CoF)', \
                                   title = 'Comparison in Two-Hop System')
-        plot_sum_rate_naive_mod = list_plot(zip(P_eq_dB, sum_rate_naive_mod), plotjoined=True, marker='H', \
+        plot_sum_rate_sym_mod = list_plot(zip(P_eq_dB, sum_rate_sym_mod), plotjoined=True, marker='H', \
                                   rgbcolor=Color('black'), linestyle=":", \
-                                  legend_label= 'Naive modulo scheme with variable power')
-#         plot_sum_rate_sim_mod = list_plot(zip(P_eq_dB, sum_rate_sim_mod), plotjoined=True, marker='o', \
-#                                   rgbcolor=Color('red'), linestyle="--", \
-#                                   legend_label= 'Conservative modulo scheme with variable power')
-        plot_sum_rate_opt_mod = list_plot(zip(P_eq_dB, sum_rate_opt_mod), plotjoined=True, marker='x', \
+                                  legend_label= 'Symmetric modulo approach with variable power')
+        plot_sum_rate_asym_mod = list_plot(zip(P_eq_dB, sum_rate_asym_mod), plotjoined=True, marker='x', \
                                       rgbcolor=Color('blue'), linestyle='-', \
-                                      legend_label = 'Flexible modulo scheme with variable power')
-        plot_compare = plot_sum_rate_fixed_pow_sim_mod+plot_sum_rate_naive_mod+plot_sum_rate_opt_mod
+                                      legend_label = 'Asymmetric modulo approach with variable power')
+        plot_sum_rate_asym_mod_asym_quan = list_plot(zip(P_eq_dB, sum_rate_asym_mod_asym_quan), plotjoined=True, marker='o', \
+                                        rgbcolor=Color('red'), linestyle='--', \
+                                        legend_label = 'Asymmetric modulo and asymmetric quantization approach with variable power')
+        
+        plot_compare = plot_sum_rate_fixed_pow_sym_mod+plot_sum_rate_sym_mod+plot_sum_rate_asym_mod+plot_sum_rate_asym_mod_asym_quan
         plot_compare.axes_labels(['SNR(dB)', 'Sum rate(bps)'])
         plot_compare.set_legend_options(loc='upper left')
         plot_compare.save('Comparison_in_Dual_Hops_System-' \
                           +P_Search_Alg+'-is_alternate='+str(is_alternate)+'-M=L='+str(M)+'.eps')
         show(plot_compare)
-        pickle.dump((P_eq_dB, CoF_Dual_Hops_Sim_Result(sum_rate_fixed_pow_sim_mod, sum_rate_naive_mod, sum_rate_opt_mod)), open('Dual_Hops.pkl', 'w'))
+        pickle.dump((P_eq_dB, {'sum_rate_fixed_pow_sym_mod': sum_rate_fixed_pow_sym_mod, 
+                               'sum_rate_sym_mod': sum_rate_sym_mod, 
+                               'sum_rate_asym_mod': sum_rate_asym_mod, 
+                               'sum_rate_asym_mod_asym_quan': sum_rate_asym_mod_asym_quan}), 
+                    open('Dual_Hops.pkl', 'w'))
     
-    print 'fixed power: '; print sum_rate_fixed_pow_sim_mod
-    print 'conventional mod with variable power: '; print sum_rate_naive_mod
-    print 'flexible mod with variable power: '; print sum_rate_opt_mod
+    print 'fixed power: '; print sum_rate_fixed_pow_sym_mod
+    print 'symmetric mod with variable power: '; print sum_rate_sym_mod
+    print 'asymmetric mod with variable power: '; print sum_rate_asym_mod
+    print 'asymmetric mod and asymmetric quantization with variable power: '; print sum_rate_asym_mod_asym_quan
     
     os.chdir(original_dir) # recover directory
     raw_input() # stop Sage from shutting down
