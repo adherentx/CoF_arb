@@ -31,6 +31,7 @@ import pickle
 
 print 'Hello, this is the simulation of CoF.'
 
+# This is for test.
 
 def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan'):
     (M, L) = (H_a.nrows(), H_a.ncols())
