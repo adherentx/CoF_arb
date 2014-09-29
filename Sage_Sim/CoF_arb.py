@@ -1,6 +1,5 @@
 '''
-Simulation of Compute and Forward with arbitrary coarse and fine
-lattices.
+Simulation of Compute and Forward. In alpha test. 
 Author: Yihua Tan
 Email: adherentx.tyh@gmail.com
 The Chinese University of Hong Kong
