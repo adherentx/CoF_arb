@@ -9,7 +9,6 @@ The Chinese University of Hong Kong
 ''' MEMO:
   Fix all the 'FIX ME' bugs!!!
 '''
-conflict = 1
 
 import copy
 import sys
