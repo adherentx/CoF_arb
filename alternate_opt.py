@@ -16,6 +16,7 @@ def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim
     max_iter_alt = 10
     # P_t_init = [0.8*P_con]*L
     h_pow = [norm(H_a.column(i_col))**2 for i_col in range(0, L)]
+    #?? 'frob'
     h_pow_max = max(h_pow)
     P_t_init = [h_pow[i]/h_pow_max*P_con for i in range(0, L)]
     sum_rate = 0
@@ -30,7 +31,7 @@ def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim
                 break
             A_old = A
             if i_iter == max_iter_alt:
-                raise("It doesn't converge in "+str(max_iter_alt)+' iterations!')
+                raise Exception("It doesn't converge in "+str(max_iter_alt)+' iterations!')
     except:
         print 'error in alternate optimize'
         raise
@@ -39,9 +40,11 @@ def alternate_optimize(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sim
     return sum_rate_opt
 
 # FIX Me!!!
-def search_P_for_rate_compute_MMSE_alpha(P_con, A, H, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme='sym_quan'):
+def search_P_for_rate_compute_MMSE_alpha(P_con, A, H, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme='sym_quan', beta=[]):
     (M, L) = (H.nrows(), H.ncols())
-    cof_pow = lambda x: -sum_rate_computation_MMSE_alpha_two_hop(L, M, x, H, A, is_dual_hop, rate_sec_hop, mod_scheme)
+    if beta == []:
+        beta = vector(RR, [1]*L)
+    cof_pow = lambda x: -sum_rate_computation_MMSE_alpha_two_hop(L, M, x, H, A, is_dual_hop, rate_sec_hop, mod_scheme, beta)
     Pranges = ((0.1, P_con), )*L
     initial_guess = [0.5*P_con]*L
     if P_Search_Alg == 'brute':

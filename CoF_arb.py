@@ -5,11 +5,6 @@ Email: adherentx.tyh@gmail.com
 The Chinese University of Hong Kong
 '''
 
-
-''' MEMO:
-  Fix all the 'FIX ME' bugs!!!
-'''
-
 import copy
 import sys
 from sage.all import *
@@ -31,9 +26,11 @@ print 'Hello, this is the simulation of CoF.'
 
 # This is for test.
 
-def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan'):
+def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan', beta=[]):
     (M, L) = (H_a.nrows(), H_a.ncols())
-    cof_pow = lambda x: -CoF_compute_fixed_pow_flex(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme)
+    if beta == []:
+        beta = vector(RR, [1]*L)
+    cof_pow = lambda x: -CoF_compute_fixed_pow_flex(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
     Pranges = ((0.1, P_con), )*L
     initial_guess = [0.5*P_con]*L
     try:
@@ -47,12 +44,19 @@ def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_sc
             #sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
             res_cof = optimize.fmin_tnc(cof_pow, initial_guess, bounds=list(Pranges), approx_grad=True, epsilon=1, stepmx=10)
             P_opt = res_cof[0]
-            sum_rate_opt = CoF_compute_fixed_pow_flex(P_opt, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme)
+            sum_rate_opt = CoF_compute_fixed_pow_flex(P_opt, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
         elif P_Search_Alg == 'anneal':
             res_cof = optimize.anneal(cof_pow, initial_guess, schedule='cauchy', T0=1, Tf=1e-6, \
                       full_output=True, maxiter=30, lower=[1, 1], upper=[P_con, P_con], dwell=30, disp=True)
             P_opt = list(res_cof[0])
             sum_rate_opt = -res_cof[1]
+        elif P_Search_Alg == 'brute_fmin':
+            res_brute = optimize.brute(cof_pow, Pranges, Ns=brute_fmin_number, full_output=True, finish=None)
+            P_brute_opt = res_brute[0]
+            sum_rate_brute = -res_brute[1] # negative! see minus sign in cof_pow
+            res_fmin = optimize.fmin(cof_pow, P_brute_opt, xtol=0.1, ftol=0.001, maxiter=brute_fmin_maxiter, full_output=True)
+            P_fmin_opt = res_fmin[0]
+            sum_rate_opt = -res_fmin[1]
         else:
             raise Exception('error: algorithm not supported')
     except:
@@ -74,7 +78,7 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
         
         sum_rate_i_H = 0
         sum_rate_i_H_var = 0
-
+        
         # Fixed power
         sum_rate_A = CoF_compute_fixed_pow_flex((P_con, )*L, False, H_a, False)
         
@@ -107,33 +111,26 @@ def CoF_compute_eq_pow_con_dual_hops(P_con, M, L):
     #P_relay = P_con
     #P_relay = sqrt(P_con) 
     for i_H in range(0, batch_H):
-        set_random_seed() # to avoid producing the same H_a in different threads
-        if DEBUG_H == True:
-            H_a = matrix(RR, M, L, [[-0.333414283246484, 0.675839593022605], [0.000374794674703693, 0.766514412738790]])
+        if is_set_H == True:
+            H_a = set_H_a
+            H_b = set_H_b
         else:
+            set_random_seed() # to avoid producing the same H_a in different threads
             H_a = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
-            #H_a = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 0.25))
-        
-        '''Fix Me: set the rate constraint of the second hop'''
-        set_random_seed()
-        H_b = (matrix.random(RR, M, 1, distribution=RealDistribution('gaussian', 1))).column(0)
+            set_random_seed()
+            H_b = (matrix.random(RR, M, 1, distribution=RealDistribution('gaussian', 1))).column(0)
+        if is_set_beta == True:
+            beta = set_beta
+        else:
+            beta = vector(RR, [1]*L)
         rate_sec_hop = [0]*M # ? bit/s for each parallel channel in the second hop
         for i_h_b in range(0, M):
             rate_sec_hop[i_h_b] = 0.5*log(1+H_b[i_h_b]**2*P_relay, 2)
         
-        # Fixed power
-        sum_rate_i_H_fixed_pow_sym_mod = CoF_compute_fixed_pow_flex_fine_lattice((P_con, )*L, H_a, rate_sec_hop)
         
-        # In dual-hop system, we use variable power method to avoid outage at the second hop.
         try:
-            if is_alternate == True:
-                sum_rate_i_H_sym_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sym_mod', quan_scheme='sym_quan')
-                sum_rate_i_H_asym_mod = alternate_optimize(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='asym_mod', quan_scheme='sym_quan')
-            else:
-                sum_rate_i_H_sym_mod = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='sym_mod', quan_scheme='sym_quan')
-                sum_rate_i_H_asym_mod = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='asym_mod', quan_scheme='sym_quan')
-                sum_rate_i_H_asym_mod_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=True, rate_sec_hop=rate_sec_hop, mod_scheme='asym_mod', quan_scheme='asym_quan')
-                pass
+            (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_mod_asym_quan) = \
+                CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, True, rate_sec_hop, beta)
         except:
             print 'error in searching for good power'
             raise
@@ -154,10 +151,45 @@ def CoF_compute_eq_pow_con_dual_hops(P_con, M, L):
             'sum_rate_asym_mod_asym_quan': sum_rate_asym_mod_asym_quan}
 
 
+@parallel(ncpus=Cores)
+def CoF_beta_search_dual_hops(P_con, M, L, beta):
+    H_a = set_H_a
+    H_b = set_H_b
+    rate_sec_hop = [0]*M # ? bit/s for each parallel channel in the second hop
+    P_relay = 0.25*P_con
+    for i_h_b in range(0, M):
+        rate_sec_hop[i_h_b] = 0.5*log(1+H_b[i_h_b]**2*P_relay, 2)
+    
+    (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_mod_asym_quan) = \
+        CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, True, rate_sec_hop, beta)
+    
+    return {'sum_rate_i_H_fixed_pow_sym_mod': sum_rate_i_H_fixed_pow_sym_mod, 
+            'sum_rate_i_H_sym_mod': sum_rate_i_H_sym_mod, 
+            'sum_rate_i_H_asym_mod': sum_rate_i_H_asym_mod, 
+            'sum_rate_i_H_asym_mod_asym_quan': sum_rate_i_H_asym_mod_asym_quan}
+    
+
+def CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, is_dual_hop, rate_sec_hop, beta):
+    # Fixed power
+    sum_rate_i_H_fixed_pow_sym_mod = CoF_compute_fixed_pow_flex_fine_lattice((P_con, )*L, H_a, rate_sec_hop, beta)
+    
+    # Variable power
+    if is_alternate == True:
+        sum_rate_i_H_sym_mod = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
+        sum_rate_i_H_asym_mod = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
+        sum_rate_i_H_asym_mod_asym_quan = 0 # TODO
+    else:
+        sum_rate_i_H_sym_mod = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
+        sum_rate_i_H_asym_mod = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
+        sum_rate_i_H_asym_mod_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'asym_quan', beta)
+    return (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_mod_asym_quan)
+
+
+
 if __name__ == "__main__": 
     '''Equal Power Constraint'''
-    P_eq_dB_Min = float(25)
-    P_eq_dB_Max = float(55)
+    P_eq_dB_Min = float(P_MIN)
+    P_eq_dB_Max = float(P_MAX)
     P_delta = 5
     P_eq_dB = arange(P_eq_dB_Min, P_eq_dB_Max, P_delta)
     P_eq = [10**(P_eq_dB_i/10) for P_eq_dB_i in P_eq_dB]
@@ -235,7 +267,6 @@ if __name__ == "__main__":
             sum_rate_asym_mod[i_P] = sum(sum_rate_asym_mod_bat)/num_batch
             sum_rate_asym_mod_asym_quan[i_P] = sum(sum_rate_asym_mod_asym_quan_bat)/num_batch
             
-                    
         sum_rate_fixed_pow_sym_mod = [RR(sum_rate_fixed_pow_sym_mod[i]) for i in range(0, len(Pl_con))]
         sum_rate_sym_mod = [RR(sum_rate_sym_mod[i]) for i in range(0, len(Pl_con))]
         sum_rate_asym_mod = [RR(sum_rate_asym_mod[i]) for i in range(0, len(Pl_con))]
@@ -270,11 +301,45 @@ if __name__ == "__main__":
                                'sum_rate_asym_mod': sum_rate_asym_mod, 
                                'sum_rate_asym_mod_asym_quan': sum_rate_asym_mod_asym_quan}), 
                     open('Dual_Hops.pkl', 'w'))
-    
-    print 'fixed power: '; print sum_rate_fixed_pow_sym_mod
-    print 'symmetric mod with variable power: '; print sum_rate_sym_mod
-    print 'asymmetric mod with variable power: '; print sum_rate_asym_mod
-    print 'asymmetric mod and asymmetric quantization with variable power: '; print sum_rate_asym_mod_asym_quan
+        
+        print 'fixed power: '; print sum_rate_fixed_pow_sym_mod
+        print 'symmetric mod with variable power: '; print sum_rate_sym_mod
+        print 'asymmetric mod with variable power: '; print sum_rate_asym_mod
+        print 'asymmetric mod and asymmetric quantization with variable power: '; print sum_rate_asym_mod_asym_quan
+        
+
+
+    '''Beta optimization'''
+    beta_min = 0.2
+    beta_max = 2
+    beta_delta = 0.2
+    beta_number = int(round((beta_max-beta_min)/beta_delta)+1)
+    #assert beta_number%Cores==0, 'wrong beta_number setting!'
+    P_con = 10**(20/10) # 40 dB
+    result = []
+    if False:
+        if L==M==2:
+            result = list(CoF_beta_search_dual_hops([(P_con, M, L, vector(RR, [beta_min+j0*beta_delta, beta_min+j1*beta_delta])) for j0 in range(0,beta_number) for j1 in range(0,beta_number)]))
+        else:
+            pass
+        # (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_mod_asym_quan)
+        for re in result:
+            print re
+        pickle.dump(result, open('beta_search.pkl', 'w'))
+        best_result_0 = max(result, key=lambda x: x[1]['sum_rate_i_H_asym_mod_asym_quan'])
+        print 'The best result for asym_mod_asym_quan is: \n', best_result_0
+        best_result_1 = max(result, key=lambda x: x[1]['sum_rate_i_H_asym_mod'])
+        print 'The best result for asym_mod is: \n', best_result_1
+        best_result_2 = max(result, key=lambda x: x[1]['sum_rate_i_H_sym_mod'])
+        print 'The best result for sym_mod is: \n', best_result_2
+        best_result_3 = max(result, key=lambda x: x[1]['sum_rate_i_H_fixed_pow_sym_mod'])
+        print 'The best result for fixed_pow_sym_mod is: \n', best_result_3
+        pickle.dump({'sum_rate_i_H_asym_mod_asym_quan': best_result_0, 
+                     'sum_rate_i_H_asym_mod': best_result_1, 
+                     'sum_rate_i_H_sym_mod': best_result_2, 
+                     'sum_rate_i_H_fixed_pow_sym_mod': best_result_3},
+                    open('best_beta.pkl', 'w'))
+    # P_con, M, L, beta
     
     os.chdir(original_dir) # recover directory
     raw_input() # stop Sage from shutting down

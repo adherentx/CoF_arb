@@ -9,39 +9,23 @@ p = 17 # The prime number
 
 Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
-P_Search_Alg = 'brute' # 'brute', 'TNC', 'anneal'
+P_MIN = 25
+P_MAX = 55
+P_Search_Alg = 'brute_fmin' # 'brute', 'TNC', 'anneal', 'brute_fmin'
 brute_number = 50
+brute_fmin_number = 20
+brute_fmin_maxiter = 50
 is_alternate = False # True or False
-iter_H = 512
-batch_H = 8
-
-def alpha_find(h, P_mat, a):
-    alpha_opt = (h.row()*P_mat*P_mat.T*a.column())[0,0]/(1+(h.row()*P_mat).norm(p=2)**2)
-    return alpha_opt
-    
-def rate_computation(L, M, P_vec, alpha, H, A):
-    r = zero_vector(RR, L)
-    phi = [0]*M
-    for i_m in range(0, M):
-        sum_mis = 0
-        for i_mis in range(0, L):
-            sum_mis = sum_mis+(alpha[i_m]*H[i_m, i_mis]-A[i_m, i_mis])**2*P_vec[i_mis]
-        phi[i_m] = (alpha[i_m])**2+sum_mis
-    for i_l in range(0, L):
-        if A.column(i_l).is_zero():
-            r[i_l] = 0 # all coefficients are 0.
-            raise Exception('It should be impossible')
-        else:
-            phi_max = 0
-            for i_m in range(0, M):
-                if A[i_m, i_l] != 0:
-                    phi_max = max(phi[i_m], phi_max)
-            r[i_l] = 0.5*log(max(1, P_vec[i_l]/phi_max), 2)
-    return r
-
+is_set_H = False # given channel
+set_H_a = matrix(RR, M, L, [[0.4, 0.8], [0.7, 0.2]])
+set_H_b = vector(RR, [0.5, 0.5])
+is_set_beta = False # set beta for given channel
+set_beta = vector(RR, [1, 1.8])
+iter_H = 240
+batch_H = 10
 
 # P is a LxL matrix P_mat
-def rate_computation_MMSE_alpha(L, M, P_t, H, A):
+def rate_computation_MMSE_alpha(L, M, P_t, H, A, beta):
     for i_P in range(0, len(P_t)):
         if math.isnan(P_t[i_P]):
             print 'P', str(i_P), ' should not be NaN!'
@@ -57,14 +41,15 @@ def rate_computation_MMSE_alpha(L, M, P_t, H, A):
         for i_m in range(0, M):
             h_m = H.row(i_m)
             a_m = A.row(i_m)
-            phi[i_m] = (a_m.row()*P).norm(p=2)**2- \
-                ((h_m.row()*P*P.T*a_m.column()).norm(p=2)**2)/(1+(h_m*P).norm(p=2)**2)
+            a_tilde_m = a_m.pairwise_product(beta)
+            phi[i_m] = (a_tilde_m.row()*P).norm()**2- \
+                ((h_m.row()*P*P.T*a_tilde_m.column()).norm()**2)/(1+(h_m*P).norm()**2)
         for i_l in range(0, L):
             phi_max = 0
             for i_m in range(0, M):
                 if A[i_m, i_l] != 0:
                     phi_max = max(phi[i_m], phi_max)
-            r[i_l] = 0.5*log(max(1, P[i_l,i_l]**2/phi_max), 2)
+            r[i_l] = 0.5*log(max(1, beta[i_l]**2*(P[i_l,i_l]**2/phi_max)), 2)
     except:
         print 'error in rate_computation_MMSE_alpha'
         raise
@@ -73,10 +58,9 @@ def rate_computation_MMSE_alpha(L, M, P_t, H, A):
     # phi is exactly the fine lattices at the relays
 
 
-def sum_rate_computation_MMSE_alpha(L, M, P_t, H, A):
-    r, relay_fine_lattices = rate_computation_MMSE_alpha(L, M, P_t, H, A)
+def sum_rate_computation_MMSE_alpha(L, M, P_t, H, A, beta):
+    r, relay_fine_lattices = rate_computation_MMSE_alpha(L, M, P_t, H, A, beta)
     return sum(r)
-
 
 
 # Simple structure, for containing simulation result

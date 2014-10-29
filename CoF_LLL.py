@@ -12,9 +12,10 @@ from CoF_second_hop import *
 
 # If the rates at the transmitters are not supported by the second hop, set the rate
 # as the largest rates that the second hop can support.
-def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
+def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop, beta=[]):
     (M, L) = (H_a.nrows(), H_a.ncols())
-    
+    if beta == []:
+        beta = vector(RR, [1]*L)
     try:
         P_t[0]
     except:
@@ -33,7 +34,7 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
     # Use LLL to find a good A matrix
     # determine the fine lattice of m-th relay at the same time
     try:
-        (A_best_LLL, rate_list_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=True)
+        (A_best_LLL, rate_list_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a, True, beta)
     except:
         print 'error in seeking A and rate'
         raise
@@ -46,16 +47,11 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop):
     return sum_rate
 
 
-def CoF_compute_fixed_pow_flex(P_t, is_return_A, *params):
-    if len(params) == 2:
-        H_a, is_dual_hop = params
-    elif len(params) == 5:
-        H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme = params
-    else:
-        raise Exception('error: please check your parameters!')
-    
+def CoF_compute_fixed_pow_flex(P_t, is_return_A, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan', beta=[]):
     (M, L) = (H_a.nrows(), H_a.ncols())
-    
+    if beta == []:
+        beta = vector(RR, [1]*L)
+    B = diagonal_matrix(beta)
     try:
         P_t[0]
     except:
@@ -74,28 +70,35 @@ def CoF_compute_fixed_pow_flex(P_t, is_return_A, *params):
     # Use LLL to find a good A matrix
     # determine the fine lattice of m-th relay at the same time
     try:
-        (A_best_LLL, sum_rate_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=False)
+        (A_best_LLL, sum_rate_A_LLL, relay_fine_lattices) = Find_A_and_Rate(P_mat, P_vec, H_a, False, beta)
     except:
         print 'error in seeking A and rate'
         raise
-    try:
-        if is_dual_hop == True:
-            '''constraints of the second hop'''
-            # relay_fine_lattices is already obtained
-            # compute the coarse lattice of the l-th transmitter
-            trans_coarse_lattices = list(P_vec) # copy
-            
-            # check whether the second-hop constraint rate_sec_hop can support the first-hop rate r
-            try:
-                support_rates = RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme, quan_scheme))
-            except:
-                print 'error in second hop'
-                raise
-        else:
-            pass
-    except:
-        print 'error in checking second hop'
-        raise
+    
+    A_best_LLL_F = matrix(GF(p), A_best_LLL)
+    if A_best_LLL_F.rank() == min(L, M):
+        try:
+            if is_dual_hop == True:
+                '''constraints of the second hop'''
+                # relay_fine_lattices is already obtained
+                # compute the coarse lattice of the l-th transmitter
+                
+                # The true coarse lattices have scaling factor beta.
+                trans_coarse_lattices = list(P_vec.pairwise_product(vector([b**2 for b in beta]))) # copy
+                
+                # check whether the second-hop constraint rate_sec_hop can support the first-hop rate r
+                try:
+                    support_rates = RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A_best_LLL, rate_sec_hop, mod_scheme, quan_scheme))
+                except:
+                    print 'error in second hop'
+                    raise
+            else:
+                pass
+        except:
+            print 'error in checking second hop'
+            raise
+    else:
+        support_rates = 0
     if is_dual_hop == True:
         if is_return_A == True:
             return (support_rates, A_best_LLL)
@@ -108,17 +111,19 @@ def CoF_compute_fixed_pow_flex(P_t, is_return_A, *params):
             return sum_rate_A_LLL
         
 
-def Find_A_m_list(P, H):
+def Find_A_m_list(P, H, beta):
     # P is a LxL matrix, H is a MxL matrix
     (M, L) = (H.nrows(), H.ncols())
     A_m_list = []
+    B = diagonal_matrix(beta)
     for i_a in range(0, M):
         h = H.row(i_a)
-        G = P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm(p=2))**2)))*P.T
-        G_rdf = G.change_ring(RDF)
-        if G_rdf.is_positive_definite() == False:
+        D_m = B*P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm())**2)))*P*B
+        # D_m = P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm())**2)))*P
+        D_m_rdf = D_m.change_ring(RDF)
+        if D_m_rdf.is_positive_definite() == False:
             raise Exception('G should be positive definite!')
-        F = G_rdf.cholesky()
+        F = D_m_rdf.cholesky()
         if F.rank() != L:
             raise Exception('F should be full rank. Check it!')
         amp = 10**5
@@ -128,17 +133,19 @@ def Find_A_m_list(P, H):
         F_a_reduced = F_a_z.LLL(use_givens=True)
         F_reduced = F_a_reduced/amp
         F_reduced_list = F_reduced.rows()
-        F_reduced_list = sorted(F_reduced_list, key=lambda x:x.norm(p=2), reverse=False)
+        F_reduced_list = sorted(F_reduced_list, key=lambda x:x.norm(), reverse=False)
         F_reduced = matrix(F_reduced_list)
         FF = F_reduced*F.inverse()
         FF_z = matrix(ZZ, L, L, [round(x) for x in FF.list()])
         A_m_list += [FF_z]
     return A_m_list
 
-def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
+def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False, beta=[]):
     # Use LLL to find a good A matrix
     (M, L) = (H.nrows(), H.ncols())
-    A_list = Find_A_m_list(P_mat, H)
+    if beta == []:
+        beta = vector(RR, [1]*L)
+    A_list = Find_A_m_list(P_mat, H, beta)
     A = zero_matrix(ZZ, M, L)
     for i_a in range(0, M):
         A.set_row(i_a, A_list[i_a].row(0))
@@ -152,7 +159,7 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
     if rank_first_row == min(L, M):
         # full rank
         try:
-            (rate, relay_fine_lattices) = rate_computation_MMSE_alpha(L, M, P_vec, H, A)
+            (rate, relay_fine_lattices) = rate_computation_MMSE_alpha(L, M, P_vec, H, A, beta)
         except:
             print 'error in rate_computation_MMSE_alpha: pos 0'
             raise
@@ -170,7 +177,7 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
             A_F = matrix(GF(p), A)
             if A_F.rank() == min(L, M):
                 try:
-                    (rate, relay_fine_lattices_i_row_search) = rate_computation_MMSE_alpha(L, M, P_vec, H, A)
+                    (rate, relay_fine_lattices_i_row_search) = rate_computation_MMSE_alpha(L, M, P_vec, H, A, beta)
                 except:
                     print 'error in rate_computation_MMSE_alpha: pos 1'
                 if sum_rate < sum(rate):
@@ -186,6 +193,11 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False):
 #         pass # for test
 #     if A_best == matrix(GF(p), 2, 2, [[1, 2], [2, 1]]):
 #         pass
+    A_best_F = matrix(GF(p), A_best)
+    if A_best_F.rank() < min(L, M):
+        #raise Exception('Even the best coefficient matrix is not full-rank in finite field')
+        rate_list = [0]*L
+    
     if is_return_rate_list == True:
         return (A_best, rate_list, relay_fine_lattices)
     else:

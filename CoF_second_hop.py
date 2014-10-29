@@ -126,7 +126,7 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
                 
         # if no successful scheme found,
         if has_feasible_mod == False: 
-            raise('If Q is full rank, then there must be at leat one feasible modulo way. But no one found.')
+            raise Exception('If Q is full rank, then there must be at leat one feasible modulo way. But no one found.')
         return sum_rate_max
     elif mod_scheme == 'sym_mod' and quan_scheme == 'asym_quan':
         # iterate all permutations 
@@ -177,7 +177,8 @@ if __name__ == "__main__":
     p = 3
     relay_fine_lattices = [0.5, 0.2]
     trans_coarse_lattices = [1.5, 2.0]
-    print RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, R, 'asym_mod'))
+    beta = [1]*2
+    print RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, R, 'asym_mod', beta))
     # should be 1.792
     
     R = [1, 10]
@@ -185,7 +186,7 @@ if __name__ == "__main__":
     p = 3
     relay_fine_lattices = [0.5, 0.2]
     trans_coarse_lattices = [1.5, 2.0]
-    print RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, R, 'asym_mod'))
+    print RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, R, 'asym_mod', beta))
     # should be 1.792
 
     R = [1, 1]
@@ -193,6 +194,6 @@ if __name__ == "__main__":
     p = 3
     relay_fine_lattices = [0.5, 0.2]
     trans_coarse_lattices = [1.5, 2.0]
-    print RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, R, 'asym_mod'))
+    print RR(second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, R, 'asym_mod', beta))
     # should be 1.792
     
