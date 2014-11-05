@@ -24,9 +24,9 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop, beta=[]):
     for i_P in range(0, len(P_t)):
         if math.isnan(P_t[i_P]):
             print 'P', str(i_P), ' should not be NaN!'
-            return 0
+            raise Exception('Invalid power setting reached.')
         if P_t[i_P] <= 0:
-            print 'P', str(i_P), ' should be positive'
+            # print 'P', str(i_P), ' should be positive'
             return 0
         
     P_vec = vector(RR, P_t)
@@ -47,10 +47,17 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop, beta=[]):
     return sum_rate
 
 
-def CoF_compute_fixed_pow_flex(P_t, is_return_A, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan', beta=[]):
+def CoF_compute_fixed_pow_flex(P_t, P_con, is_return_A, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan', beta=[]):
     (M, L) = (H_a.nrows(), H_a.ncols())
     if beta == []:
         beta = vector(RR, [1]*L)
+    for be in list(beta):
+        if be <= 0:
+            print 'beta = ', list(beta), 'should be positive'
+            if is_return_A == True:
+                return (0, zero_matrix(M, L))
+            else:
+                return 0
     B = diagonal_matrix(beta)
     try:
         P_t[0]
@@ -60,10 +67,13 @@ def CoF_compute_fixed_pow_flex(P_t, is_return_A, H_a, is_dual_hop, rate_sec_hop=
     for i_P in range(0, L):
         if math.isnan(P_t[i_P]):
             print 'P', str(i_P), ' should not be NaN!'
-            return 0
-        if P_t[i_P] <= 0:
-            print 'P', str(i_P), ' should be positive'
-            return 0
+            raise Exception('Invalid power setting reached.')
+        if P_t[i_P] <= 0 or P_t[i_P] > P_con:
+            # print 'P', str(i_P), ' should be positive and less than P_con'
+            if is_return_A == True:
+                return (0, zero_matrix(M, L))
+            else:
+                return 0
     
     P_vec = vector(RR, P_t)
     P_mat = matrix.diagonal([sqrt(x) for x in P_vec])
@@ -93,22 +103,16 @@ def CoF_compute_fixed_pow_flex(P_t, is_return_A, H_a, is_dual_hop, rate_sec_hop=
                     print 'error in second hop'
                     raise
             else:
-                pass
+                support_rates = sum_rate_A_LLL
         except:
             print 'error in checking second hop'
             raise
     else:
         support_rates = 0
-    if is_dual_hop == True:
-        if is_return_A == True:
-            return (support_rates, A_best_LLL)
-        else:
-            return support_rates
+    if is_return_A == True:
+        return (support_rates, A_best_LLL)
     else:
-        if is_return_A == True:
-            return (sum_rate_A_LLL, A_best_LLL)
-        else:
-            return sum_rate_A_LLL
+        return support_rates
         
 
 def Find_A_m_list(P, H, beta):
@@ -122,7 +126,10 @@ def Find_A_m_list(P, H, beta):
         # D_m = P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm())**2)))*P
         D_m_rdf = D_m.change_ring(RDF)
         if D_m_rdf.is_positive_definite() == False:
-            raise Exception('G should be positive definite!')
+            # raise Exception('G should be positive definite!')
+            # FIXME
+            print 'WARNNING! G should be positive definite!'
+            return []
         F = D_m_rdf.cholesky()
         if F.rank() != L:
             raise Exception('F should be full rank. Check it!')
@@ -146,6 +153,12 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False, beta=[]):
     if beta == []:
         beta = vector(RR, [1]*L)
     A_list = Find_A_m_list(P_mat, H, beta)
+    if not A_list:
+        print 'WARNING! empty A_list. Will return zero rate and matrix.'
+        if is_return_rate_list == True:
+            return (zero_matrix(RR, M, L), [0]*L, float('inf')*M)
+        else:
+            return (zero_matrix(RR, M, L), 0, float('inf')*M)
     A = zero_matrix(ZZ, M, L)
     for i_a in range(0, M):
         A.set_row(i_a, A_list[i_a].row(0))
@@ -180,6 +193,7 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False, beta=[]):
                     (rate, relay_fine_lattices_i_row_search) = rate_computation_MMSE_alpha(L, M, P_vec, H, A, beta)
                 except:
                     print 'error in rate_computation_MMSE_alpha: pos 1'
+                    raise
                 if sum_rate < sum(rate):
                     sum_rate = sum(rate)
                     rate_list = list(rate)
@@ -197,6 +211,7 @@ def Find_A_and_Rate(P_mat, P_vec, H, is_return_rate_list=False, beta=[]):
     if A_best_F.rank() < min(L, M):
         #raise Exception('Even the best coefficient matrix is not full-rank in finite field')
         rate_list = [0]*L
+        sum_rate = 0
     
     if is_return_rate_list == True:
         return (A_best, rate_list, relay_fine_lattices)
@@ -210,27 +225,47 @@ def CoF_rank_deficiency(P_con):
     rank_deficiency = 0
     M = 2
     L = 2
-    for i_H in range(0, iter_H):
-        set_random_seed() # to avoid producing the same H in different threads
-        H_a = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
-        # H_a = matrix(RR, M, L, [[-0.869243498832414, 0.762538785616652], [-0.914996809982352, 0.801032403084523]])
-        # Fixed power
-        P_mat = sqrt(P_con)*identity_matrix(L)
-        P_vec = P_con*vector([1]*L)
-        
-        # Use LLL to find a good A matrix
-        (A, dummy, dummy) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=False)
-        
-        A_F = matrix(GF(p), A)
-        alpha_opt = zero_vector(RR, M)
-        if A_F.rank() == min(L, M):
-            pass
-        else:
-            # rank deficiency: outage
-            sum_rate_A = 0
-            rank_deficiency += 1
     
-    return float(rank_deficiency)/iter_H
+    iter_d = 10000
+    for i_d in range(0, iter_d):
+        H = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
+        P = diagonal_matrix((vector(RR, [1, 1])+random_vector(RR, 2))*100000)
+        h = H.row(1)
+        beta = vector(RR, [1, 1])
+        B = diagonal_matrix(beta)
+        D_m = B*P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm())**2)))*P*B
+        # D_m = P*(identity_matrix(RR, L)-(P.T*h.column()*h.row()*P/(1+((h.row()*P).norm())**2)))*P
+        D_m_rdf = D_m.change_ring(RDF)
+        if D_m_rdf.is_positive_definite() == False:
+            # raise Exception('G should be positive definite!')
+            # FIXME
+            print 'WARNNING! G should be positive definite!'
+            print 'h = ', h, 'D_m = ', D_m
+            return []
+    print 'finish: no error found'
+    return []
+    
+#     for i_H in range(0, iter_H):
+#         set_random_seed() # to avoid producing the same H in different threads
+#         H_a = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
+#         # H_a = matrix(RR, M, L, [[-0.869243498832414, 0.762538785616652], [-0.914996809982352, 0.801032403084523]])
+#         # Fixed power
+#         P_mat = sqrt(P_con)*identity_matrix(L)
+#         P_vec = P_con*vector([1]*L)
+#         
+#         # Use LLL to find a good A matrix
+#         (A, dummy, dummy) = Find_A_and_Rate(P_mat, P_vec, H_a, is_return_rate_list=False)
+#         
+#         A_F = matrix(GF(p), A)
+#         alpha_opt = zero_vector(RR, M)
+#         if A_F.rank() == min(L, M):
+#             pass
+#         else:
+#             # rank deficiency: outage
+#             sum_rate_A = 0
+#             rank_deficiency += 1
+#     
+#     return float(rank_deficiency)/iter_H
 
 
 if __name__ == "__main__":

@@ -9,30 +9,35 @@ p = 17 # The prime number
 
 Cores = 8 # The number of CPU cores used in parallel computing
 DEBUG_H = False # When this value is True, the channel matrix H is set as certain matrices
-P_MIN = 25
-P_MAX = 55
-P_Search_Alg = 'brute_fmin' # 'brute', 'TNC', 'anneal', 'brute_fmin'
+P_MIN = 70
+P_MAX = 90
+P_DEL = 20
+P_Search_Alg = 'brute_fmin_beta' 
+# 'brute', 'TNC', 'anneal', 'brute_fmin', 'brute_fmin_cobyla', 'brute_fmin_beta', 'brute_fmin_cobyla_beta'
+# 'brute_brute'
 brute_number = 50
 brute_fmin_number = 20
-brute_fmin_maxiter = 50
+brute_fmin_maxiter = 70
+brute_brute_first_number = 25
+brute_brute_second_number = 25
 is_alternate = False # True or False
 is_set_H = False # given channel
 set_H_a = matrix(RR, M, L, [[0.4, 0.8], [0.7, 0.2]])
 set_H_b = vector(RR, [0.5, 0.5])
 is_set_beta = False # set beta for given channel
 set_beta = vector(RR, [1, 1.8])
-iter_H = 240
-batch_H = 10
+iter_H = 320
+batch_H = 20
 
 # P is a LxL matrix P_mat
 def rate_computation_MMSE_alpha(L, M, P_t, H, A, beta):
     for i_P in range(0, len(P_t)):
         if math.isnan(P_t[i_P]):
             print 'P', str(i_P), ' should not be NaN!'
-            return 0
+            return ([0]*L, [float('inf')]*M)
         if P_t[i_P] <= 0:
             print 'P', str(i_P), ' should be positive'
-            return 0
+            return ([0]*L, [float('inf')]*M)
     P = matrix.diagonal([sqrt(x) for x in P_t])
     
     r = zero_vector(RR, L)

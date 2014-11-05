@@ -131,6 +131,7 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
     elif mod_scheme == 'sym_mod' and quan_scheme == 'asym_quan':
         # iterate all permutations 
         sum_rate_max = 0
+        raise Exception('Not implemented yet!')
     elif mod_scheme == 'sym_mod' and quan_scheme == 'sym_quan':
         relay_actual_fine_lattices = list(relay_fine_lattices)
         relay_coarse_lattice = max(trans_coarse_lattices)
@@ -152,7 +153,8 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
         sum_rate = sum(r)
         return sum_rate
     else:
-        raise Exception("mod_scheme should take value as 'asym_mod' or 'sym_opt'!")
+        raise Exception("mod_scheme should take value as 'asym_mod' or 'sym_mod'! \
+            quan_scheme should take value as 'asym_quan' or 'sym_quan'!")
     
 
 

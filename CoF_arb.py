@@ -30,7 +30,8 @@ def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_sc
     (M, L) = (H_a.nrows(), H_a.ncols())
     if beta == []:
         beta = vector(RR, [1]*L)
-    cof_pow = lambda x: -CoF_compute_fixed_pow_flex(x, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
+    cof_pow = lambda x: -CoF_compute_fixed_pow_flex(x, P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
+    cof_pow_beta = lambda x: -CoF_compute_fixed_pow_flex(x[0:L], P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, vector(RR, x[L:L+M]))
     Pranges = ((0.1, P_con), )*L
     initial_guess = [0.5*P_con]*L
     try:
@@ -44,7 +45,7 @@ def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_sc
             #sum_rate_opt = -res_cof.fun # negative! see minus sign in cof_pow
             res_cof = optimize.fmin_tnc(cof_pow, initial_guess, bounds=list(Pranges), approx_grad=True, epsilon=1, stepmx=10)
             P_opt = res_cof[0]
-            sum_rate_opt = CoF_compute_fixed_pow_flex(P_opt, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
+            sum_rate_opt = CoF_compute_fixed_pow_flex(P_opt, P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
         elif P_Search_Alg == 'anneal':
             res_cof = optimize.anneal(cof_pow, initial_guess, schedule='cauchy', T0=1, Tf=1e-6, \
                       full_output=True, maxiter=30, lower=[1, 1], upper=[P_con, P_con], dwell=30, disp=True)
@@ -54,9 +55,43 @@ def CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop, rate_sec_hop=[], mod_sc
             res_brute = optimize.brute(cof_pow, Pranges, Ns=brute_fmin_number, full_output=True, finish=None)
             P_brute_opt = res_brute[0]
             sum_rate_brute = -res_brute[1] # negative! see minus sign in cof_pow
-            res_fmin = optimize.fmin(cof_pow, P_brute_opt, xtol=0.1, ftol=0.001, maxiter=brute_fmin_maxiter, full_output=True)
+            res_fmin = optimize.fmin(cof_pow, P_brute_opt, xtol=1, ftol=0.01, maxiter=brute_fmin_maxiter, full_output=True)
             P_fmin_opt = res_fmin[0]
             sum_rate_opt = -res_fmin[1]
+        elif P_Search_Alg == 'brute_brute':
+            res_brute1 = optimize.brute(cof_pow, Pranges, Ns=brute_brute_first_number, full_output=True, finish=None)
+            P_brute_opt1 = res_brute1[0]
+            sum_rate_brute1 = -res_brute1[1] # negative! see minus sign in cof_pow
+            Pranges_brute_2 = tuple([(max(0,P_i-P_con/brute_brute_first_number), min(P_con,P_i+P_con/brute_brute_first_number)) for P_i in P_brute_opt1])
+            res_brute2 = optimize.brute(cof_pow, Pranges_brute_2, Ns=brute_brute_second_number, full_output=True, finish=None)
+            P_brute_opt2 = res_brute2[0]
+            sum_rate_brute2 = -res_brute2[1] # negative! see minus sign in cof_pow
+            sum_rate_opt = sum_rate_brute2
+        elif P_Search_Alg == 'brute_fmin_beta':
+            res_brute = optimize.brute(cof_pow, Pranges, Ns=brute_fmin_number, full_output=True, finish=None)
+            P_brute_opt = res_brute[0]
+            sum_rate_brute = -res_brute[1] # negative! see minus sign in cof_pow
+            res_fmin_beta = optimize.fmin(cof_pow_beta, list(P_brute_opt)+[1]*M, xtol=0.01, ftol=0.01, maxiter=brute_fmin_maxiter*50, full_output=True)
+            P_fmin_opt = res_fmin_beta[0]
+            sum_rate_opt = -res_fmin_beta[1]
+        elif P_Search_Alg == 'brute_fmin_cobyla':
+            res_brute = optimize.brute(cof_pow, Pranges, Ns=brute_fmin_number, full_output=True, finish=None)
+            P_brute_opt = res_brute[0]
+            def pow_constraint(x):
+                return x
+            sum_rate_brute = -res_brute[1] # negative! see minus sign in cof_pow
+            p_cobyla = optimize.fmin_cobyla(cof_pow, P_brute_opt, pow_constraint, maxfun=100)
+            sum_rate_fmin_cobyla = CoF_compute_fixed_pow_flex(p_cobyla, P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
+            sum_rate_opt = sum_rate_fmin_cobyla
+        elif P_Search_Alg == 'brute_fmin_cobyla_beta':
+            res_brute = optimize.brute(cof_pow, Pranges, Ns=brute_fmin_number, full_output=True, finish=None)
+            P_brute_opt = res_brute[0]
+            def pow_beta_constraint(x):
+                return x
+            sum_rate_brute = -res_brute[1] # negative! see minus sign in cof_pow
+            p_cobyla = optimize.fmin_cobyla(cof_pow_beta, list(P_brute_opt)+[1]*M, pow_beta_constraint, maxfun=200)
+            sum_rate_fmin_cobyla = CoF_compute_fixed_pow_flex(p_cobyla, P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, beta)
+            sum_rate_opt = sum_rate_fmin_cobyla
         else:
             raise Exception('error: algorithm not supported')
     except:
@@ -80,7 +115,7 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
         sum_rate_i_H_var = 0
         
         # Fixed power
-        sum_rate_A = CoF_compute_fixed_pow_flex((P_con, )*L, False, H_a, False)
+        sum_rate_A = CoF_compute_fixed_pow_flex((P_con, )*L, P_con, False, H_a, False)
         
         # Variable power
         if is_alternate == True:
@@ -177,11 +212,16 @@ def CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, is_dual_h
     if is_alternate == True:
         sum_rate_i_H_sym_mod = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
         sum_rate_i_H_asym_mod = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
-        sum_rate_i_H_asym_mod_asym_quan = 0 # TODO
+        sum_rate_i_H_asym_mod_asym_quan = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'asym_quan', beta)
     else:
         sum_rate_i_H_sym_mod = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
         sum_rate_i_H_asym_mod = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
         sum_rate_i_H_asym_mod_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'asym_quan', beta)
+    
+    if (sum_rate_i_H_fixed_pow_sym_mod<0) or (sum_rate_i_H_sym_mod<0) or (sum_rate_i_H_asym_mod<0) or (sum_rate_i_H_asym_mod_asym_quan<0):
+        # raise Exception('Function CoF_compute_eq_pow_con_dual_hops_fixed_H() gets negative result!')
+        return (0, 0, 0, 0)
+    
     return (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_mod_asym_quan)
 
 
@@ -190,7 +230,7 @@ if __name__ == "__main__":
     '''Equal Power Constraint'''
     P_eq_dB_Min = float(P_MIN)
     P_eq_dB_Max = float(P_MAX)
-    P_delta = 5
+    P_delta = P_DEL
     P_eq_dB = arange(P_eq_dB_Min, P_eq_dB_Max, P_delta)
     P_eq = [10**(P_eq_dB_i/10) for P_eq_dB_i in P_eq_dB]
     Pl_con = P_eq
