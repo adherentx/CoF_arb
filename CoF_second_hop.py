@@ -66,9 +66,6 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
                     relay_actual_fine_lattices = list(relay_fine_lattices)
                     # determine the achievable fine lattices at the relays
                     for i_m in range(0, M):
-    #                     R_m = max(0, 0.5*log(relay_coarse_lattices[i_m]/relay_actual_fine_lattices[i_m], 2))
-    #                     if rate_sec_hop[i_m] < R_m:
-    #                         relay_actual_fine_lattices[i_m] = relay_coarse_lattices[i_m]/(2**(2*rate_sec_hop[i_m]))
                         relay_actual_fine_lattices[i_m] = max(relay_actual_fine_lattices[i_m], relay_coarse_lattices[i_m]/(2**(2*rate_sec_hop[i_m])))
                     # determine the fine lattice of the l-th transmitter
                     trans_fine_lattices = [float(0)]*L
@@ -128,10 +125,50 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
         if has_feasible_mod == False: 
             raise Exception('If Q is full rank, then there must be at leat one feasible modulo way. But no one found.')
         return sum_rate_max
+    
     elif mod_scheme == 'sym_mod' and quan_scheme == 'asym_quan':
+        relay_coarse_lattice = max(trans_coarse_lattices)
         # iterate all permutations 
         sum_rate_max = 0
-        raise Exception('Not implemented yet!')
+        has_feasible_quan = False
+        for quan_order in itertools.permutations(list(range(0, M)), L):
+            relay_compute_fine_lattices = list(relay_fine_lattices)
+            is_quan_decodable = check_feasible_permutation(A, [-relay_compute_fine_lattices[i] for i in range(0, L)], quan_order)
+            if is_quan_decodable == True:
+                has_feasible_quan = True
+                quan_order_list = list(quan_order)
+                # determine the fine lattice of the l-th transmitter according to computation constraints
+                trans_compute_fine_lattices = [float(0)]*L
+                for i_L in range(0, L):
+                    for i_M in range(0, M):
+                        if (A[i_M, i_L]!=0) and (relay_compute_fine_lattices[i_M]>trans_compute_fine_lattices[i_L]):
+                            trans_compute_fine_lattices[i_L] = relay_compute_fine_lattices[i_M]
+                # map the trans_compute_fine_lattices to the relays
+                relay_map_fine_lattices = [0]*M
+                for i_m in range(0, M):
+                    relay_map_fine_lattices[i_m] = trans_compute_fine_lattices[quan_order_list.index(i_m)]
+                
+                # determine the quantization lattice at the m-th relay
+                relay_quan_fine_lattices = [0]*M
+                for i_m in range(0, M):
+                    relay_quan_fine_lattices[i_m] = max(relay_map_fine_lattices[i_m], relay_coarse_lattice/(2**(2*rate_sec_hop[i_m])))
+                
+                # map the relay_quan_fine_lattices back to the transmitters
+                trans_fine_lattices = [0]*L
+                for i_l in range(0, L):
+                    trans_fine_lattices[i_l] = relay_quan_fine_lattices[quan_order_list[i_l]]
+                
+                # calculate transmission sum rates
+                r = [0]*L
+                for i_l in range(0, L):
+                    r[i_l] = max(0, 0.5*log(trans_coarse_lattices[i_l]/trans_fine_lattices[i_l], 2))
+                sum_rate = sum(r)
+                if sum_rate_max < sum_rate:
+                    sum_rate_max = sum_rate
+        if has_feasible_quan == False:
+            raise Exception('If Q is full rank, then there must be at leat one feasible quantizatioin way. But no one found.')
+        return sum_rate_max
+        
     elif mod_scheme == 'sym_mod' and quan_scheme == 'sym_quan':
         relay_actual_fine_lattices = list(relay_fine_lattices)
         relay_coarse_lattice = max(trans_coarse_lattices)

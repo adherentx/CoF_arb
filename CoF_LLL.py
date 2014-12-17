@@ -12,6 +12,7 @@ from CoF_second_hop import *
 
 # If the rates at the transmitters are not supported by the second hop, set the rate
 # as the largest rates that the second hop can support.
+'''
 def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop, beta=[]):
     (M, L) = (H_a.nrows(), H_a.ncols())
     if beta == []:
@@ -45,15 +46,19 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop, beta=[]):
                 rate_list[i_l] = rate_sec_hop[i_m]
     sum_rate = sum(rate_list)
     return sum_rate
-
+'''
 
 def CoF_compute_fixed_pow_flex(P_t, P_con, is_return_A, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan', beta=[]):
+    
+    print 'P: '; print P_t
+    print 'beta = ', list(beta)
+    
     (M, L) = (H_a.nrows(), H_a.ncols())
     if beta == []:
         beta = vector(RR, [1]*L)
     for be in list(beta):
         if be <= 0:
-            print 'beta = ', list(beta), 'should be positive'
+            # print 'beta = ', list(beta), 'should be positive'
             if is_return_A == True:
                 return (0, zero_matrix(M, L))
             else:
@@ -68,7 +73,7 @@ def CoF_compute_fixed_pow_flex(P_t, P_con, is_return_A, H_a, is_dual_hop, rate_s
         if math.isnan(P_t[i_P]):
             print 'P', str(i_P), ' should not be NaN!'
             raise Exception('Invalid power setting reached.')
-        if P_t[i_P] <= 0 or P_t[i_P] > P_con:
+        if P_t[i_P] <= 0 or P_t[i_P] > (P_con+0.1):
             # print 'P', str(i_P), ' should be positive and less than P_con'
             if is_return_A == True:
                 return (0, zero_matrix(M, L))
