@@ -110,11 +110,11 @@ def CoF_compute_search_pow_flex_beta(P_con, H_a, is_fixed_power, is_dual_hop, ra
     '''
     if is_fixed_power == False:
         cof_pow_beta = lambda x: -CoF_compute_fixed_pow_flex(x[0:L], P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, vector(RR, [1,]+list(x[L:2*L-1])))
-        Pranges = ((P_con/brute_number, P_con), )*L + ((float(beta_max)/brute_number, beta_max), )# (slice(0, P_con+0.1, P_con/brute_number), )*L + (slice(10/brute_number, 10, 10/brute_number), )
+        Pranges = ((P_con/brute_number, P_con), )*L + ((float(beta_max)/brute_number, beta_max), )
     else:
         cof_pow_beta = lambda x: -CoF_compute_fixed_pow_flex((P_con,P_con), P_con, False, H_a, is_dual_hop, rate_sec_hop, mod_scheme, quan_scheme, vector(RR, [1,x]))
-        Pranges = ((beta_max/brute_number, beta_max), ) # (slice(10/brute_number, 10, 10/brute_number), )
-
+        Pranges = ((float(beta_max)/brute_number, beta_max), )
+        
     try:
         if P_Search_Alg == 'brute':
             res_cof = optimize.brute(cof_pow_beta, Pranges, Ns=brute_number, full_output=True, finish=None)
@@ -166,22 +166,22 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
         
         # Variable power
         if is_alternate == True:
-            sum_rate_A_var = alternate_optimize(P_con, H_a, is_dual_hop=False)
+            sum_rate_i_H_var = alternate_optimize(P_con, H_a, is_dual_hop=False)
         else:
             sum_rate_i_H_var = CoF_compute_search_pow_flex(P_con, H_a, is_dual_hop=False)
             
-        sum_rate_i_H_var_beta = CoF_compute_search_pow_flex_beta(P_con, H_a, is_fixed_power=False, is_dual_hop=False)
         sum_rate_i_H_beta = CoF_compute_search_pow_flex_beta(P_con, H_a, is_fixed_power=True, is_dual_hop=False)
+        sum_rate_i_H_var_beta = CoF_compute_search_pow_flex_beta(P_con, H_a, is_fixed_power=False, is_dual_hop=False)
         
         sum_rate += sum_rate_i_H
         sum_rate_var += sum_rate_i_H_var
-        sum_rate_var_beta += sum_rate_i_H_var_beta
         sum_rate_beta += sum_rate_i_H_beta
+        sum_rate_var_beta += sum_rate_i_H_var_beta
     # for i_H
     sum_rate /= batch_H
     sum_rate_var /= batch_H
-    sum_rate_var_beta /= batch_H
     sum_rate_beta /= batch_H
+    sum_rate_var_beta /= batch_H
     
 #     print P_con, sum_rate, sum_rate_var
     return {'sum_rate': sum_rate, 'sum_rate_var': sum_rate_var, 'sum_rate_var_beta': sum_rate_var_beta, 'sum_rate_beta': sum_rate_beta}

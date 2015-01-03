@@ -15,13 +15,13 @@ P_DEL = 5
 P_Search_Alg = 'brute' 
 # 'brute', 'TNC', 'anneal', 'brute_fmin', 'brute_fmin_cobyla', 'brute_fmin_beta', 'brute_fmin_cobyla_beta'
 # 'brute_brute'
-brute_number = 50
+brute_number = 10
 brute_fmin_number = 20
 brute_fmin_maxiter = 70
 brute_brute_first_number = 25
 brute_brute_second_number = 25
 
-beta_max = 10
+beta_max = 2
 if mod(brute_number, beta_max) != 0:
     raise Exception('Error: beta=1 will not be included!')
 
@@ -31,8 +31,8 @@ set_H_a = matrix(RR, M, L, [[0.4, 0.8], [0.7, 0.2]])
 set_H_b = vector(RR, [0.5, 0.5])
 is_set_beta = False # set beta for given channel
 set_beta = vector(RR, [1, 1.8])
-iter_H = 240
-batch_H = 30
+iter_H = 8
+batch_H = 1
 
 # P is a LxL matrix P_mat
 def rate_computation_MMSE_alpha(L, M, P_t, H, A, beta):
