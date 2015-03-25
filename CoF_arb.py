@@ -151,12 +151,12 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
     sum_rate_var_beta = 0
     sum_rate_beta = 0
     for i_H in range(0, batch_H):
-        set_random_seed() # to avoid producing the same H_a in different threads
-        if DEBUG_H == True:
-            H_a = matrix(RR, M, L, [[0.430020183081381, 0.507485287402749], [0.571045084182643, -0.846256047736565]])
+        if is_set_H == True:
+            H_a = set_H_a
         else:
+            set_random_seed() # to avoid producing the same H_a in different threads
             H_a = matrix.random(RR, M, L, distribution=RealDistribution('gaussian', 1))
-        
+            
         sum_rate_i_H = 0
         sum_rate_i_H_var = 0
         sum_rate_i_H_var_beta = 0
@@ -172,6 +172,11 @@ def CoF_compute_eq_pow_con_first_hop(P_con, M, L):
             
         sum_rate_i_H_beta = CoF_compute_search_pow_flex_beta(P_con, H_a, is_fixed_power=True, is_dual_hop=False)
         sum_rate_i_H_var_beta = CoF_compute_search_pow_flex_beta(P_con, H_a, is_fixed_power=False, is_dual_hop=False)
+        
+        if sum_rate_i_H_var_beta > 1.01*sum_rate_i_H_beta:
+            print 'var_beta is better than sole beta when channel H = ', H_a
+            print 'sum_rate_i_H_beta = ', sum_rate_i_H_beta
+            print 'sum_rate_i_H_var_beta', sum_rate_i_H_var_beta
         
         sum_rate += sum_rate_i_H
         sum_rate_var += sum_rate_i_H_var
@@ -270,16 +275,22 @@ def CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, is_dual_h
     sum_rate_i_H_fixed_pow_asym_quan = CoF_compute_fixed_pow_flex([P_con]*L, P_con, False, H_a, is_dual_hop, rate_sec_hop, 'sym_mod', 'asym_quan', beta)
     
     # Variable power
+    sum_rate_i_H_sym_mod = 0
+    sum_rate_i_H_asym_mod = 0
+    sum_rate_i_H_asym_quan = 0
+    sum_rate_i_H_asym_mod_asym_quan = 0
+    
     if is_alternate == True:
         sum_rate_i_H_sym_mod = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
         sum_rate_i_H_asym_mod = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
-        sum_rate_i_H_asym_quan = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'asym_quan', beta)
+        #sum_rate_i_H_asym_quan = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'asym_quan', beta)
         sum_rate_i_H_asym_mod_asym_quan = alternate_optimize(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'asym_quan', beta)
     else:
         sum_rate_i_H_sym_mod = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
         sum_rate_i_H_asym_mod = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
-        sum_rate_i_H_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'asym_quan', beta)
+        #sum_rate_i_H_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'sym_mod', 'asym_quan', beta)
         sum_rate_i_H_asym_mod_asym_quan = CoF_compute_search_pow_flex(P_con, H_a, True, rate_sec_hop, 'asym_mod', 'asym_quan', beta)
+    
     
     if (sum_rate_i_H_fixed_pow_sym_mod<0) or (sum_rate_i_H_fixed_pow_asym_quan<0) or (sum_rate_i_H_sym_mod<0) or (sum_rate_i_H_asym_quan<0) or (sum_rate_i_H_asym_mod<0) or (sum_rate_i_H_asym_mod_asym_quan<0):
         raise Exception('Function CoF_compute_eq_pow_con_dual_hops_fixed_H() gets negative result!')
@@ -313,7 +324,7 @@ if __name__ == "__main__":
     os.chdir(dir_name) # change to the directory where simulation results should be placed
     
     '''First Hop'''
-    if True:
+    if False:
         sum_rate = [0]*len(Pl_con)
         sum_rate_var = [0]*len(Pl_con)
         sum_rate_beta = [0]*len(Pl_con)
@@ -370,7 +381,7 @@ if __name__ == "__main__":
         print 'sum_rate_var_beta: '; print sum_rate_var_beta
     
     '''Dual Hops'''
-    if False:
+    if True:
         sum_rate_fixed_pow_sym_mod = [0]*len(Pl_con)
         sum_rate_fixed_pow_asym_quan = [0]*len(Pl_con)
         sum_rate_sym_mod = [0]*len(Pl_con)
@@ -432,7 +443,8 @@ if __name__ == "__main__":
         
         plot_compare = plot_sum_rate_fixed_pow_sym_mod+plot_sum_rate_fixed_pow_asym_quan+plot_sum_rate_sym_mod+\
             plot_sum_rate_asym_mod+plot_sum_rate_asym_quan+plot_sum_rate_asym_mod_asym_quan
-        plot_compare.set_axes_range(ymax=max(sum_rate_asym_mod_asym_quan)*1.4)
+        plot_compare.set_axes_range(ymax=max(sum_rate_fixed_pow_sym_mod+sum_rate_fixed_pow_asym_quan+sum_rate_sym_mod+\
+                                             sum_rate_asym_mod+sum_rate_asym_quan+sum_rate_asym_mod_asym_quan)*1.4)
         plot_compare.axes_labels(['SNR(dB)', 'Sum rate(bps)'])
         plot_compare.set_legend_options(loc='upper left')
         plot_compare.save('Comparison_in_Dual_Hops_System-' \
@@ -456,14 +468,14 @@ if __name__ == "__main__":
 
 
     '''Beta optimization'''
-    beta_min = 1
-    beta_max = 2
-    beta_delta = 1
-    beta_number = int(round((beta_max-beta_min)/beta_delta)+1)
-    #assert beta_number%Cores==0, 'wrong beta_number setting!'
-    P_con = 10**(20/10) # 40 dB
-    result = []
     if False:
+        beta_min = 1
+        beta_max = 2
+        beta_delta = 1
+        beta_number = int(round((beta_max-beta_min)/beta_delta)+1)
+        #assert beta_number%Cores==0, 'wrong beta_number setting!'
+        P_con = 10**(20/10) # 40 dB
+        result = []
         if L==M==2:
             result = list(CoF_beta_search_dual_hops([(P_con, M, L, vector(RR, [beta_min+j0*beta_delta, beta_min+j1*beta_delta])) \
                                                      for j0 in range(0,beta_number) for j1 in range(0,beta_number)]))

@@ -69,11 +69,11 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
                         relay_actual_fine_lattices[i_m] = max(relay_actual_fine_lattices[i_m], relay_coarse_lattices[i_m]/(2**(2*rate_sec_hop[i_m])))
                     # determine the fine lattice of the l-th transmitter
                     trans_fine_lattices = [float(0)]*L
-                
                     for i_L in range(0, L):
                         for i_M in range(0, M):
                             if (A[i_M, i_L]!=0) and (relay_actual_fine_lattices[i_M]>trans_fine_lattices[i_L]):
                                 trans_fine_lattices[i_L] = relay_actual_fine_lattices[i_M]
+                                
                     r = [0]*L
                     for i_l in range(0, L):
                         r[i_l] = max(0, 0.5*log(trans_coarse_lattices[i_l]/trans_fine_lattices[i_l], 2))
@@ -151,7 +151,7 @@ def second_hop_support_rates(relay_fine_lattices, trans_coarse_lattices, A, rate
                 # determine the quantization lattice at the m-th relay
                 relay_quan_fine_lattices = [0]*M
                 for i_m in range(0, M):
-                    relay_quan_fine_lattices[i_m] = max(relay_map_fine_lattices[i_m], relay_coarse_lattice/(2**(2*rate_sec_hop[i_m])))
+                    relay_quan_fine_lattices[i_m] = max(relay_map_fine_lattices[i_m], RR(relay_coarse_lattice/(2**(2*rate_sec_hop[i_m]))))
                 
                 # map the relay_quan_fine_lattices back to the transmitters
                 trans_fine_lattices = [0]*L

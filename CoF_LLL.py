@@ -50,8 +50,8 @@ def CoF_compute_fixed_pow_flex_fine_lattice(P_t, H_a, rate_sec_hop, beta=[]):
 
 def CoF_compute_fixed_pow_flex(P_t, P_con, is_return_A, H_a, is_dual_hop, rate_sec_hop=[], mod_scheme='sym_mod', quan_scheme='sym_quan', beta=[]):
     
-    print 'P: '; print P_t
-    print 'beta = ', list(beta)
+    # print 'P: '; print P_t
+    # print 'beta = ', list(beta)
     
     (M, L) = (H_a.nrows(), H_a.ncols())
     if beta == []:
