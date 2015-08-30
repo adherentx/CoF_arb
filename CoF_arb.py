@@ -224,6 +224,8 @@ def CoF_compute_eq_pow_con_dual_hops(P_con, M, L):
         try:
             (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_fixed_pow_asym_quan, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_quan, sum_rate_i_H_asym_mod_asym_quan) = \
                 CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, True, rate_sec_hop, beta)
+            #(sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_fixed_pow_asym_quan, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_quan, sum_rate_i_H_asym_mod_asym_quan) = \
+            #    CoF_compute_set_pow_dual_hops_fixed_H(is_alternate, P_con, H_a, True, rate_sec_hop, beta)
         except:
             print 'error in searching for good power'
             raise
@@ -260,7 +262,7 @@ def CoF_beta_search_dual_hops(P_con, M, L, beta):
         rate_sec_hop[i_h_b] = 0.5*log(1+H_b[i_h_b]**2*P_relay, 2)
     (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_fixed_pow_asym_quan, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_quan, sum_rate_i_H_asym_mod_asym_quan) = \
         CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, True, rate_sec_hop, beta)
-    
+        
     return {'sum_rate_i_H_fixed_pow_sym_mod': sum_rate_i_H_fixed_pow_sym_mod, 
             'sum_rate_i_H_fixed_pow_asym_quan': sum_rate_i_H_fixed_pow_asym_quan, 
             'sum_rate_i_H_sym_mod': sum_rate_i_H_sym_mod, 
@@ -298,6 +300,30 @@ def CoF_compute_eq_pow_con_dual_hops_fixed_H(is_alternate, P_con, H_a, is_dual_h
     
     return (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_fixed_pow_asym_quan, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_quan, sum_rate_i_H_asym_mod_asym_quan)
 
+
+def CoF_compute_set_pow_dual_hops_fixed_H(is_alternate, P_con, H_a, is_dual_hop, rate_sec_hop, beta):
+    # the same power
+    sum_rate_i_H_fixed_pow_sym_mod = 0
+    sum_rate_i_H_fixed_pow_asym_quan = CoF_compute_fixed_pow_flex([P_con]*L, P_con, False, H_a, is_dual_hop, rate_sec_hop, 'sym_mod', 'asym_quan', beta)
+    
+    # different power
+    sum_rate_i_H_sym_mod = 0
+    sum_rate_i_H_asym_mod = 0
+    sum_rate_i_H_asym_quan = 0
+    sum_rate_i_H_asym_mod_asym_quan = 0
+    
+    P_setting = [0.5*P_con, P_con]
+    
+    sum_rate_i_H_sym_mod = CoF_compute_fixed_pow_flex(P_setting, P_con, False, H_a, True, rate_sec_hop, 'sym_mod', 'sym_quan', beta)
+    sum_rate_i_H_asym_mod = CoF_compute_fixed_pow_flex(P_setting, P_con, False, H_a, True, rate_sec_hop, 'asym_mod', 'sym_quan', beta)
+    sum_rate_i_H_asym_mod_asym_quan = CoF_compute_fixed_pow_flex(P_setting, P_con, False, H_a, True, rate_sec_hop, 'asym_mod', 'asym_quan', beta)
+
+    
+    if (sum_rate_i_H_fixed_pow_sym_mod<0) or (sum_rate_i_H_fixed_pow_asym_quan<0) or (sum_rate_i_H_sym_mod<0) or (sum_rate_i_H_asym_quan<0) or (sum_rate_i_H_asym_mod<0) or (sum_rate_i_H_asym_mod_asym_quan<0):
+        raise Exception('Function CoF_compute_set_pow_con_dual_hops_fixed_H() gets negative result!')
+        # return (0, 0, 0, 0)
+    
+    return (sum_rate_i_H_fixed_pow_sym_mod, sum_rate_i_H_fixed_pow_asym_quan, sum_rate_i_H_sym_mod, sum_rate_i_H_asym_mod, sum_rate_i_H_asym_quan, sum_rate_i_H_asym_mod_asym_quan)
 
 
 if __name__ == "__main__": 

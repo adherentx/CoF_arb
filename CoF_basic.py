@@ -15,7 +15,7 @@ P_DEL = 5
 P_Search_Alg = 'brute' 
 # 'brute', 'TNC', 'anneal', 'brute_fmin', 'brute_fmin_cobyla', 'brute_fmin_beta', 'brute_fmin_cobyla_beta'
 # 'brute_brute'
-brute_number = 100
+brute_number = 20
 brute_fmin_number = 20
 brute_fmin_maxiter = 70
 brute_brute_first_number = 25
@@ -34,8 +34,8 @@ if is_set_H == True:
 is_set_beta = False # set beta for given channel
 if is_set_beta == True:
     set_beta = vector(RR, [1, 1.8])
-iter_H = 960
-batch_H = 8
+iter_H = 8
+batch_H = 1
 
 # P is a LxL matrix P_mat
 def rate_computation_MMSE_alpha(L, M, P_t, H, A, beta):
